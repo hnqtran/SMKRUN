@@ -93,7 +93,7 @@ If running over SSH, ensure you have X-Forwarding enabled (`ssh -X` or `-Y`). Th
 
 ### Tab 3: Run Log
 - Monitor the execution progress.
-- Toggle **Follow Log** to stay at the bottom of the output.
+- Automatically stays at the bottom of the output (Follow Log enabled by default).
 - Click **Analyse Current Log** to populate the Log Analysis tab.
 
 ### Tab 4: Output Files
