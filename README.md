@@ -2,13 +2,13 @@
 
 **Location:** `/proj/ie/proj/SMOKE/htran/Emission_Modeling_Platform/utils/smkrun/`  
 **Author:** Huy Tran, UNC-IE (2026-02)  
-**Version:** 1.0 (Ported to PyQt5)
+**Version:** 1.0 (Qt6/Qt5 Dynamic Shim)
 
 ---
 
 ## Overview
 
-`smkrun.py` is a powerful, interactive Graphical User Interface (GUI) designed to simplify the management, execution, and analysis of SMOKE (Sparse Matrix Operator Kernel Emissions) runscripts. Built with PyQt5, it provides a 5-tab interface that allows users to browse script trees, inspect and override environment variables in real-time, execute scripts with live log streaming, and perform post-run analysis.
+`smkrun.py` is a powerful, interactive Graphical User Interface (GUI) designed to simplify the management, execution, and analysis of SMOKE (Sparse Matrix Operator Kernel Emissions) runscripts. Built with a dynamic Qt shim, it automatically detects and uses **PySide6 (Qt6)** or **PyQt5 (Qt5)**. It provides a multi-tab interface for browsing script trees, inspecting/overriding environment variables, executing scripts with live log streaming, and performing integrated log analysis.
 
 ---
 
@@ -49,42 +49,50 @@
 
 ## Installation
 
-The tool requires a specific Python environment to handle PyQt5 and NetCDF dependencies reliably.
+The tool uses a standard nested Python `venv` to ensure zero-conflict operation with system libraries.
 
 1. **Run the Setup Script:**
    ```bash
    ./install.sh
    ```
-   *This script creates a local Conda environment in `.venv/` and configures the `smkrun.py` shebang.*
+   *This script creates an isolated virtual environment in `.venv/`, installs dependencies via `pip`, and patches the `smkrun.py` shebang with an absolute path to the local interpreter.*
 
-2. **Dependencies:**
-   - Python 3.11+
-   - PyQt5
-   - PyYAML
-   - netCDF4 / xarray (for NetCDF metadata viewing)
-   - Matplotlib / Pandas (for visualization)
+2. **Dependencies (Automated):**
+   - **PySide6** (Primary) or **PyQt5** (Fallback)
+   - **PyYAML**, **netCDF4**, **matplotlib**, **pandas**, **beautifulsoup4**
 
 ---
 
-## How to Run
+## Usage (CLI)
 
-### Desktop / GUI Mode
-If you are on a system with X11 forwarding or a local display:
+`smkrun` supports several command-line arguments to streamline your workflow:
+
+| Argument | Description |
+| :--- | :--- |
+| `-f, --file [PATH]` | Load a specific `.csh` runscript immediately on startup. |
+| `-d, --dir [PATH]` | Set the **Script Browser** root to a specific project directory. |
+| `-r, --run [PATH]` | Load a script AND **automatically start execution** without confirmation. |
+| `-h, --help` | Display full help and example usage patterns. |
+
+### Examples:
 ```bash
-./smkrun.py
-```
+# Launch with a specific project directory in the browser
+./smkrun.py -d /proj/ie/proj/SMOKE/2022v2/scripts/point
 
-### Remote / SSH Mode
-If running over SSH, ensure you have X-Forwarding enabled (`ssh -X` or `-Y`). The tool includes workarounds for common OpenGL/FBConfig warnings over SSH.
+# Load a specific script and wait for user input
+./smkrun.py -f run_area_paved_road.csh
+
+# Load and RUN a script immediately (Automated Mode)
+./smkrun.py -r run_pt_oilgas_onetime.csh
+```
 
 ---
 
 ## Interface Guide
 
 ### Tab 1: Variables
-- **Inspect** all variables defined in the script.
-- **Double-click** the "Raw Value" or "Expanded Path" column to set an **Override**.
-- **Right-click** a variable to **Define Variable** (show documentation) or **View/Edit File** if the variable points to a text file.
+- **Inspect** all variables. **Double-click** "Raw Value" to set an **Override**.
+- **Right-click** a variable to show documentation or view the target file.
 
 ### Tab 2: Source
 - View the syntax-highlighted code of the runscript.
@@ -92,19 +100,13 @@ If running over SSH, ensure you have X-Forwarding enabled (`ssh -X` or `-Y`). Th
 - Click **Finish Editing** to apply changes as a temporary patch for the next run.
 
 ### Tab 3: Run Log
-- Monitor the execution progress.
-- Automatically stays at the bottom of the output (Follow Log enabled by default).
-- Click **Analyse Current Log** to populate the Log Analysis tab.
+- Real-time streamed output with error/warning auto-coloring.
 
-### Tab 4: Output Files
-- Scans for files created during the run or defined in the environment.
-- **Double-click** a file to open the internal viewer.
-- **Right-click** a file to **Plot Emissions** (requires `smkplot` install) or **Copy Absolute Path**.
+### Tab 4: Input/Output Files
+- Scans for discovered inputs and outputs. Right-click files to **Plot Emissions** via `smkplot`.
 
 ### Tab 5: Log Analysis
-- View a summary of Errors and Warnings.
-- Click an entry in the "Issues List" to jump to the relevant log line.
-- See a summary of which SMOKE programs were detected in the log.
+- Summary of Errors and Warnings with "Click-to-Jump" navigation into the log.
 
 ---
 

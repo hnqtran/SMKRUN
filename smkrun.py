@@ -1,4 +1,4 @@
-#!./.venv/bin/python
+#!/proj/ie/proj/SMOKE/htran/Emission_Modeling_Platform/utils/smkrun/.venv/bin/python
 """
 smkrun.py  [v1.0]   Interactive SMOKE Runscript Launcher GUI
 =======================================================
@@ -26,6 +26,7 @@ import sys
 import yaml
 import tempfile
 import signal
+import argparse
 
 # ── X11/SSH Forwarding Workarounds ─────────────
 # Mute benign warnings about missing OpenGL FBConfigs and XDG runtime folders over SSH
@@ -37,15 +38,28 @@ os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
-                             QHBoxLayout, QSplitter, QTreeWidget, QTreeWidgetItem, 
-                             QTabWidget, QLabel, QPushButton, QLineEdit, QComboBox, 
-                             QTextEdit, QTextBrowser, QTableWidget, QTableWidgetItem, QHeaderView,
-                             QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
-                             QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
-                             QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt5.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter
+try:
+    from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                                 QHBoxLayout, QSplitter, QTreeWidget, QTreeWidgetItem, 
+                                 QTabWidget, QLabel, QPushButton, QLineEdit, QComboBox, 
+                                 QTextEdit, QTextBrowser, QTableWidget, QTableWidgetItem, QHeaderView,
+                                 QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
+                                 QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
+                                 QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
+    from PySide6.QtCore import Qt, QTimer, Signal, QObject
+    from PySide6.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter
+    QT_VERSION = 6
+except ImportError:
+    from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                                 QHBoxLayout, QSplitter, QTreeWidget, QTreeWidgetItem, 
+                                 QTabWidget, QLabel, QPushButton, QLineEdit, QComboBox, 
+                                 QTextEdit, QTextBrowser, QTableWidget, QTableWidgetItem, QHeaderView,
+                                 QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
+                                 QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
+                                 QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
+    from PyQt5.QtCore import Qt, QTimer, pyqtSignal as Signal, QObject
+    from PyQt5.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter
+    QT_VERSION = 5
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 SCRIPTS_ROOT = (
@@ -304,8 +318,8 @@ class CSHHighlighter(QSyntaxHighlighter):
 # ── Main ──────────────────────────────────────────────────────────
 
 class LogSignal(QObject):
-    new_line = pyqtSignal(str)
-    done = pyqtSignal(int)
+    new_line = Signal(str)
+    done = Signal(int)
 
 class OverrideDialog(QDialog):
     def __init__(self, var, current, parent=None):
@@ -465,12 +479,16 @@ class FileViewerDialog(QDialog):
                 QMessageBox.critical(self, "Error", f"Could not save file: {e}")
 
 class SMKRunApp(QMainWindow):
-    def __init__(self):
+    def __init__(self, initial_script: Optional[str] = None, initial_dir: Optional[str] = None, auto_run: bool = False):
         super().__init__()
-        self.setWindowTitle("SMOKE Run Launcher · 2022v2 Platform (PyQt5)")
+        self.setWindowTitle(f"SMOKE Run Launcher · 2022v2 Platform (Qt{QT_VERSION})")
         self.resize(1600, 950)
         
         self._scripts_root = SCRIPTS_ROOT
+        if initial_dir and os.path.isdir(initial_dir):
+            self._scripts_root = os.path.abspath(initial_dir)
+        elif initial_script and os.path.exists(initial_script):
+            self._scripts_root = os.path.dirname(os.path.abspath(initial_script))
         self._proc = None
         self._running = False
         self._current_script: Optional[str] = None
@@ -487,6 +505,14 @@ class SMKRunApp(QMainWindow):
         self._apply_theme()
         self._build_ui()
         self._populate_script_tree(self._scripts_root)
+        
+        if initial_script and os.path.exists(initial_script):
+            # Use QTimer to ensure the UI is fully initialized before loading
+            def do_init_load():
+                self._load_script(initial_script)
+                if auto_run:
+                    self._run_script(bypass_confirm=True)
+            QTimer.singleShot(100, do_init_load)
         
     def _load_env_docs(self) -> Dict[str, str]:
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -996,7 +1022,7 @@ class SMKRunApp(QMainWindow):
             self._load_script(path)
 
     def _load_script(self, path: str):
-        self._current_script = path
+        self._current_script = os.path.abspath(path)
         self._script_override_content = None
         self._lbl_script.setText(os.path.basename(path))
         self._btn_cancel_src.setEnabled(False)
@@ -1096,11 +1122,13 @@ class SMKRunApp(QMainWindow):
                         action_copy = menu.addAction("Copy Path")
                         action_copy.triggered.connect(lambda checked=False, p=expanded_path: QApplication.clipboard().setText(p))
                 
-                menu.exec_(self._var_table.viewport().mapToGlobal(pos))
+                if QT_VERSION == 6: menu.exec(self._var_table.viewport().mapToGlobal(pos))
+                else: menu.exec_(self._var_table.viewport().mapToGlobal(pos))
                 
     def _show_var_definition(self, var_key, desc):
         dlg = DefinitionDialog(var_key, desc, self)
-        dlg.exec_()
+        if QT_VERSION == 6: dlg.exec()
+        else: dlg.exec_()
         
     def _show_file_viewer(self, path, var_name):
         dlg = FileViewerDialog(path, var_name, self)
@@ -1136,7 +1164,8 @@ class SMKRunApp(QMainWindow):
         current = self._overrides.get(var, r_info["value"])
         
         dlg = OverrideDialog(var, current, self)
-        if dlg.exec_() == QDialog.Accepted:
+        res = dlg.exec() if QT_VERSION == 6 else dlg.exec_()
+        if res == QDialog.Accepted:
             if dlg.cleared:
                 self._overrides.pop(var, None)
             else:
@@ -1278,7 +1307,7 @@ class SMKRunApp(QMainWindow):
         self._highlight_source()
 
     # ── Script Execution ──
-    def _run_script(self):
+    def _run_script(self, bypass_confirm=False):
         if not self._current_script:
             QMessageBox.warning(self, "No Script", "Please select a runscript first.")
             return
@@ -1294,8 +1323,9 @@ class SMKRunApp(QMainWindow):
         if self._overrides:
             msg += f"\n\nWith {len(self._overrides)} override(s):\n"
             for v, val in self._overrides.items(): msg += f"  {v} = {val}\n"
-        reply = QMessageBox.question(self, "Confirm", msg, QMessageBox.Yes | QMessageBox.No)
-        if reply == QMessageBox.No: return
+        if not bypass_confirm:
+            reply = QMessageBox.question(self, "Confirm", msg, QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No: return
 
         self._clear_log()
         self._running = True
@@ -1340,7 +1370,7 @@ class SMKRunApp(QMainWindow):
             try:
                 self._proc = subprocess.Popen(
                     cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    env=env, cwd=script_dir, universal_newlines=True, bufsize=1,
+                    env=env, cwd=script_dir if script_dir else None, universal_newlines=True, bufsize=1,
                     preexec_fn=os.setsid
                 )
                 for line in self._proc.stdout:
@@ -1539,7 +1569,7 @@ class SMKRunApp(QMainWindow):
             
             # Unconditionally detect log files and update program context
             # We look for explicit "checking log file" or any absolute path ending in .log
-            m_log = re.search(r"((?:/|[./]+[a-zA-Z0-9_\-]+/)[a-z0-9_\-\./]+\.log)", low, re.IGNORECASE)
+            m_log = re.search(r"((?:/|[./]+[a-zA-Z0-9_\-]+/)[A-Za-z0-9_\-\./]+\.log)", line, re.IGNORECASE)
             if m_log:
                 log_p = m_log.group(1).strip("'\"")
                 target = log_p if os.path.isabs(log_p) else os.path.normpath(os.path.join(base_dir, log_p))
@@ -1558,11 +1588,9 @@ class SMKRunApp(QMainWindow):
             # Pattern: Opened for input (SMOKE style: path is usually on the next line)
             if any(x in low for x in ["opened for input", "opened as old", "old:read-only", "checking log file", "input file"]):
                 # First, check if the path is on the SAME line
-                m_same = re.search(r"(?:input|old|only|file|log)\s+((?:/|[.]{1,2}/)[a-z0-9_\-\./]+\.[a-z0-9]{1,4})", low, re.IGNORECASE)
+                m_same = re.search(r"(?:input|old|only|file|log)\s+((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]{1,4})", line, re.IGNORECASE)
                 if m_same:
-                    # Extract from the original 'line' to preserve case
-                    m_orig = re.search(r"(?:input|old|only|file|log)\s+((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]{1,4})", line, re.IGNORECASE)
-                    candidate = m_orig.group(1).strip("'\"") if m_orig else m_same.group(1).strip("'\"")
+                    candidate = m_same.group(1).strip("'\"")
                     target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
                     if os.path.isfile(target): found.append((os.path.abspath(target), current_prog))
                 
@@ -1582,7 +1610,7 @@ class SMKRunApp(QMainWindow):
             # Pattern: Successful OPEN (Alternative SMOKE format)
             if "successful open for inventory file" in low:
                  # Check current line first
-                 m_same = re.search(r"file:\s+((?:/|[.]{1,2}/)[a-z0-9_\-\./]+\.[a-z0-9]+)", low, re.IGNORECASE)
+                 m_same = re.search(r"file:\s+((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]+)", line, re.IGNORECASE)
                  path = None
                  if m_same: path = m_same.group(1)
                  elif (i + 1) < len(lines): path = lines[i+1].strip().strip("'\"")
@@ -2051,8 +2079,42 @@ class SMKRunApp(QMainWindow):
         event.accept()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="SMKRUN: Interactive SMOKE Runscript Launcher",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # 1) Launch normally (standard root):
+  ./smkrun.py
+
+  # 2) Launch with a specific project directory in the browser:
+  ./smkrun.py -d /proj/ie/proj/SMOKE/2022v2/scripts/point
+
+  # 3) Load a specific script on startup:
+  ./smkrun.py -f run_area_paved_road_2022he_cb6_22m.csh
+
+  # 4) Load AND run a script immediately:
+  ./smkrun.py -r run_pt_oilgas_onetime_2022he_cb6_22m.csh
+        """
+    )
+    parser.add_argument("-f", "--file", help="Path to a SMOKE runscript (.csh) to load on startup")
+    parser.add_argument("-d", "--dir", help="Project root directory for the script browser")
+    parser.add_argument("-r", "--run", help="Load and automatically run this SMOKE runscript")
+    args = parser.parse_args()
+
+    # Determine which script to load and if it should auto-run
+    initial_script = args.file
+    auto_run = False
+    
+    if args.run:
+        initial_script = args.run
+        auto_run = True
+
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)
-    window = SMKRunApp()
+    window = SMKRunApp(initial_script=initial_script, initial_dir=args.dir, auto_run=auto_run)
     window.show()
-    sys.exit(app.exec_())
+    if QT_VERSION == 6:
+        sys.exit(app.exec())
+    else:
+        sys.exit(app.exec_())
