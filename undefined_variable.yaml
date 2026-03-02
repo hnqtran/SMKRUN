@@ -1,0 +1,12 @@
+EMISINV_A1: Path to raw emissions inventory CSV file (A1), picked up by combine_data
+  to build the SMOKE processing list file.
+GSPROTMP_D1: Fragment or case-specific speciation profile file (D1), merged by combine_data
+  to create the comprehensive GSPRO.
+GSREFTMP_F: Fragment or case-specific speciation cross-reference file (F), merged
+  by combine_data to create the comprehensive GSREF.
+GSREFTMP_X4: Fragment or case-specific speciation cross-reference file (X4), merged
+  by combine_data to create the comprehensive GSREF.
+RUN_MONTHS: Whitespace-separated list of integer month numbers to include in the current
+  modeling run (e.g., '1 2 3 12').
+SRGPRO: Filepath to the gridding surrogate profile file, mapping spatial surrogates
+  to grid cells.

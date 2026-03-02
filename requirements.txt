@@ -1,0 +1,8 @@
+# Qt UI Framework (Prefer PySide6, fallback to PyQt5)
+PySide6 >= 6.0.0
+PyQt5 >= 5.15.0
+matplotlib
+pandas
+netCDF4
+beautifulsoup4
+PyYAML

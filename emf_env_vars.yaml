@@ -113,13 +113,13 @@ qa_run_v10.csh:
       (e.g., 'temporal', 'part4', 'inv').
   REPCONFIG:
     default: ''
-    description: Used to define or pass values to $REPCONFIG_INV2_A, $REPCONFIG_INV2_B,
-      $REPCONFIG_INV3_B, $REPCONFIG_TEMP, $REPCONFIG_AERMOD, $REPCONFIG_INV2, $REPCONFIG_INV,
-      $REPCONFIG_INV2_C, $REPCONFIG_GRID, $REPCONFIG_INV3_A, $REPCONFIG_INV3, $REPCONFIG_INV3_...
+    description: Used to define or pass values to $REPCONFIG_INV2, $REPCONFIG_AERMOD,
+      $REPCONFIG_INV2_C, $REPCONFIG_INV3, $REPCONFIG_INV2_A, $REPCONFIG_INV3_A, $REPCONFIG_GRID,
+      $REPCONFIG_TEMP, $REPCONFIG_INV3_C, $REPCONFIG_INV, $REPCONFIG_INV2_B, $REPCONFIG_INV3_...
   REPCONFIG_AERMOD:
     default: ''
     description: Specifies the Smkreport configuration file tailored for AERMOD-compatible
-      emissions reporting and coordinate-based QA.
+      emissions reporting.
   REPCONFIG_GRID:
     default: ''
     description: Path to the Smkreport configuration file optimized for gridded inventory
@@ -127,13 +127,11 @@ qa_run_v10.csh:
   REPCONFIG_INV:
     default: ''
     description: Primary Smkreport configuration file (REPCONFIG) used for base inventory
-      QA processing, defining core pollutants and summary reports.
+      QA processing.
   REPCONFIG_INV2:
     default: ''
     description: Specifies the filepath for a secondary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv2'. This provides an alternative
-      reporting suite for inventory validation, allowing for distinct QA protocols
-      without overwriting the base REPCONFIG_INV configuration.
+      file, active only when QA_TYPE is set to 'inv2'.
   REPCONFIG_INV2_A:
     default: ''
     description: Specifies the filepath for variant A of the secondary inventory configuration,
@@ -149,9 +147,7 @@ qa_run_v10.csh:
   REPCONFIG_INV3:
     default: ''
     description: Specifies the filepath for a tertiary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv3'. This supports specialized multi-tier
-      QA processing by enabling a third independent configuration for comprehensive
-      inventory auditing.
+      file, active only when QA_TYPE is set to 'inv3'.
   REPCONFIG_INV3_A:
     default: ''
     description: Specifies the filepath for variant A of the tertiary inventory configuration,
@@ -167,9 +163,7 @@ qa_run_v10.csh:
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPORT1:
     default: ''
     description: File path for an external Smkreport output file (REPORT1). Used to
@@ -475,11 +469,12 @@ qa_run_v10.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SMKREPORT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to generate state reports using
@@ -500,9 +495,9 @@ qa_run_v10.csh:
       SMOKE processing runtimes.
   TMPLOG:
     default: ''
-    description: Used to define or pass values to $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
-      $OUTLOG/smk2emis_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log, $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log,
-      $OUTLOG/smkmerge_${SRCABBR}_${CASE}_${ESDATE}_${G...
+    description: Used to define or pass values to $OUTLOG/metscan_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
+      $OUTLOG/${nb}_${SRCABBR}_${CASE}_$GRID.log, $OUTLOG/mrggrid_${SRCABBR}_${CASE}_${ESDATE}_${GRID}_${SPC}.log,
+      $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log...
   V:
     default: ''
     description: 'Evaluated dynamically in scripts: # $Version$'
@@ -519,7 +514,7 @@ set_days_v5.csh:
     description: Directory path pointing to the I/O API tool executables (like m3xtract).
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   P:
     default: ''
@@ -534,8 +529,8 @@ set_days_v5.csh:
       scripts.
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -558,6 +553,10 @@ set_months_v4.csh:
   SPINUP_LIST:
     default: ''
     description: Whitespace-separated list of YYYYMMDD dates denoting spin-up days.
+  SPINUP_MONTH_END:
+    default: ''
+    description: End month (integer) of the spin-up period used to initialize air
+      quality model state.
 smk_PROJECT_annual_emf.csh:
   ACMAT01:
     default: ''
@@ -663,10 +662,10 @@ smk_PROJECT_annual_emf.csh:
     description: Evaluated against specific values (e.g., P).
   PCMAT01:
     default: ''
-    description: Used to define or pass values to $PPMAT, $PCMAT.
+    description: Used to define or pass values to $PCMAT, $PPMAT.
   PCMAT02:
     default: ''
-    description: Used to define or pass values to $PPMAT, $PCMAT.
+    description: Used to define or pass values to $PCMAT, $PPMAT.
   PROMPTFLAG:
     default: ''
     description: Y/N flag indicating whether scripts will interactively prompt for
@@ -721,29 +720,32 @@ smk_PROJECT_annual_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRWINVEN:
     default: ''
-    description: 'Assignment context: Y'
+    description: Boolean (Y/N) flag indicating whether to execute the Grwinven step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKREPORT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to generate state reports using
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -780,7 +782,7 @@ smk_PROJECT_annual_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   USE_CASE_CON:
     default: ''
     description: Boolean (Y/N) flag determining if CASE_CON takes precedence.
@@ -909,10 +911,10 @@ smk_PROJECT_monthly_emf.csh:
       '1 2 3').
   PCMAT01:
     default: ''
-    description: Used to define or pass values to $PPMAT, $PCMAT.
+    description: Used to define or pass values to $PCMAT, $PPMAT.
   PCMAT02:
     default: ''
-    description: Used to define or pass values to $PPMAT, $PCMAT.
+    description: Used to define or pass values to $PCMAT, $PPMAT.
   PROMPTFLAG:
     default: ''
     description: Y/N flag indicating whether scripts will interactively prompt for
@@ -967,29 +969,32 @@ smk_PROJECT_monthly_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRWINVEN:
     default: ''
-    description: 'Assignment context: Y'
+    description: Boolean (Y/N) flag indicating whether to execute the Grwinven step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKREPORT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to generate state reports using
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -1026,7 +1031,7 @@ smk_PROJECT_monthly_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   USE_CASE_CON:
     default: ''
     description: Boolean (Y/N) flag determining if CASE_CON takes precedence.
@@ -1195,7 +1200,7 @@ smk_ar_annual_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -1234,21 +1239,15 @@ smk_ar_annual_emf.csh:
   REPCONFIG_INV2:
     default: ''
     description: Specifies the filepath for a secondary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv2'. This provides an alternative
-      reporting suite for inventory validation, allowing for distinct QA protocols
-      without overwriting the base REPCONFIG_INV configuration.
+      file, active only when QA_TYPE is set to 'inv2'.
   REPCONFIG_INV3:
     default: ''
     description: Specifies the filepath for a tertiary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv3'. This supports specialized multi-tier
-      QA processing by enabling a third independent configuration for comprehensive
-      inventory auditing.
+      file, active only when QA_TYPE is set to 'inv3'.
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -1305,8 +1304,8 @@ smk_ar_annual_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -1317,24 +1316,28 @@ smk_ar_annual_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -1345,8 +1348,8 @@ smk_ar_annual_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -1385,8 +1388,8 @@ smk_ar_annual_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -1412,7 +1415,7 @@ smk_ar_annual_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -1598,7 +1601,7 @@ smk_ar_gridded3D_annual_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -1625,12 +1628,11 @@ smk_ar_gridded3D_annual_emf.csh:
       files.
   PTMP_FRI:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf.
   PTMP_MON:
     default: ''
-    description: Used to define or pass values to ${PTMPNAME}${g_stdate_temp}.ncf,
-      $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf,
+      ${PTMPNAME}${g_stdate_temp}.ncf. Set PTMP files for BYDAY approach
   PTMP_SAT:
     default: ''
     description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$sat_date.ncf,
@@ -1641,16 +1643,15 @@ smk_ar_gridded3D_annual_emf.csh:
       $PTMP_MON.
   PTMP_THU:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf.
   PTMP_TUE:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf.
+      Set PTMP files for BYDAY approach
   PTMP_WED:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf.
+      Set PTMP files for BYDAY approach
   QA_LABEL:
     default: ''
     description: Label applied to report outputs for tracking QA scenarios.
@@ -1726,46 +1727,52 @@ smk_ar_gridded3D_annual_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
       using distinct temporal profiles.
   RUN_LAYALLOC:
     default: ''
-    description: Used to define or pass values to $run_layalloc.
+    description: Boolean (Y/N) flag indicating whether to execute the Layalloc step
+      or program.
   RUN_M3STAT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the m3stat tool for
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -1776,8 +1783,8 @@ smk_ar_gridded3D_annual_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -1816,8 +1823,8 @@ smk_ar_gridded3D_annual_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -1843,7 +1850,7 @@ smk_ar_gridded3D_annual_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -2029,7 +2036,7 @@ smk_ar_gridded3D_monthly_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -2056,12 +2063,11 @@ smk_ar_gridded3D_monthly_emf.csh:
       files.
   PTMP_FRI:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf.
   PTMP_MON:
     default: ''
-    description: Used to define or pass values to ${PTMPNAME}${g_stdate_temp}.ncf,
-      $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf,
+      ${PTMPNAME}${g_stdate_temp}.ncf. Set PTMP files for BYDAY approach
   PTMP_SAT:
     default: ''
     description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$sat_date.ncf,
@@ -2072,16 +2078,15 @@ smk_ar_gridded3D_monthly_emf.csh:
       $PTMP_MON.
   PTMP_THU:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf.
   PTMP_TUE:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf.
+      Set PTMP files for BYDAY approach
   PTMP_WED:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf.
+      Set PTMP files for BYDAY approach
   QA_LABEL:
     default: ''
     description: Label applied to report outputs for tracking QA scenarios.
@@ -2161,46 +2166,52 @@ smk_ar_gridded3D_monthly_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
       using distinct temporal profiles.
   RUN_LAYALLOC:
     default: ''
-    description: Used to define or pass values to $run_layalloc.
+    description: Boolean (Y/N) flag indicating whether to execute the Layalloc step
+      or program.
   RUN_M3STAT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the m3stat tool for
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -2211,8 +2222,8 @@ smk_ar_gridded3D_monthly_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -2248,8 +2259,8 @@ smk_ar_gridded3D_monthly_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -2275,7 +2286,7 @@ smk_ar_gridded3D_monthly_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -2437,7 +2448,7 @@ smk_ar_gridded_annual_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -2533,12 +2544,12 @@ smk_ar_gridded_annual_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -2549,27 +2560,32 @@ smk_ar_gridded_annual_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -2580,8 +2596,8 @@ smk_ar_gridded_annual_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -2620,8 +2636,8 @@ smk_ar_gridded_annual_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -2647,7 +2663,7 @@ smk_ar_gridded_annual_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -2806,7 +2822,7 @@ smk_ar_gridded_monthly_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -2906,12 +2922,12 @@ smk_ar_gridded_monthly_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -2922,27 +2938,32 @@ smk_ar_gridded_monthly_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -2953,8 +2974,8 @@ smk_ar_gridded_monthly_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -2990,8 +3011,8 @@ smk_ar_gridded_monthly_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -3017,7 +3038,7 @@ smk_ar_gridded_monthly_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -3200,7 +3221,7 @@ smk_ar_monthly_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -3239,9 +3260,7 @@ smk_ar_monthly_emf.csh:
   REPCONFIG_INV2:
     default: ''
     description: Specifies the filepath for a secondary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv2'. This provides an alternative
-      reporting suite for inventory validation, allowing for distinct QA protocols
-      without overwriting the base REPCONFIG_INV configuration.
+      file, active only when QA_TYPE is set to 'inv2'.
   REPCONFIG_INV2_A:
     default: ''
     description: Specifies the filepath for variant A of the secondary inventory configuration,
@@ -3257,9 +3276,7 @@ smk_ar_monthly_emf.csh:
   REPCONFIG_INV3:
     default: ''
     description: Specifies the filepath for a tertiary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv3'. This supports specialized multi-tier
-      QA processing by enabling a third independent configuration for comprehensive
-      inventory auditing.
+      file, active only when QA_TYPE is set to 'inv3'.
   REPCONFIG_INV3_A:
     default: ''
     description: Specifies the filepath for variant A of the tertiary inventory configuration,
@@ -3275,9 +3292,7 @@ smk_ar_monthly_emf.csh:
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -3330,8 +3345,8 @@ smk_ar_monthly_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -3342,24 +3357,28 @@ smk_ar_monthly_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -3370,8 +3389,8 @@ smk_ar_monthly_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -3407,8 +3426,8 @@ smk_ar_monthly_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -3434,7 +3453,7 @@ smk_ar_monthly_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -3546,7 +3565,7 @@ smk_beis4_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   M_TYPE:
     default: ''
@@ -3583,19 +3602,24 @@ smk_beis4_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_NORMBEIS3:
     default: ''
-    description: Time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Normbeis3 step
+      or program.
   RUN_NORMBEIS4:
     default: ''
-    description: Time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Normbeis4 step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
@@ -3606,7 +3630,8 @@ smk_beis4_emf.csh:
       program.
   RUN_TMPBEIS4:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_tmpbeis4.
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbeis4 step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -3631,8 +3656,8 @@ smk_beis4_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_LIST:
     default: ''
     description: Whitespace-separated list of YYYYMMDD dates denoting spin-up days.
@@ -3654,14 +3679,14 @@ smk_beis4_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
       or M_TYPE.
   WRF_VERSION:
     default: ''
-    description: 'Assignments like: 3, 4'
+    description: 'Assignments like: 4, 3'
   YEAR:
     default: ''
     description: The modeling year being processed.
@@ -3765,7 +3790,7 @@ smk_beis_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   M_TYPE:
     default: ''
@@ -3802,16 +3827,20 @@ smk_beis_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_NORMBEIS3:
     default: ''
-    description: Time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Normbeis3 step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
@@ -3822,7 +3851,8 @@ smk_beis_emf.csh:
       program.
   RUN_TMPBEIS3:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_tmpbeis3.
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbeis3 step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -3847,8 +3877,8 @@ smk_beis_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_LIST:
     default: ''
     description: Whitespace-separated list of YYYYMMDD dates denoting spin-up days.
@@ -3870,7 +3900,7 @@ smk_beis_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -4011,8 +4041,8 @@ smk_or_MOVES_merge_emf.csh:
       get registered into the EMF even on failure.
   REPMERGE_ADJ:
     default: ''
-    description: Used to define or pass values to $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv,
-      $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
+    description: Used to define or pass values to $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv,
+      $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
       Define the mrggrid reports if using a...
   REPOUT:
     default: ''
@@ -4022,22 +4052,24 @@ smk_or_MOVES_merge_emf.csh:
     description: Path to a run-settings configuration file containing batch parameters.
   RUN_DOMAIN:
     default: ''
-    description: Used to define or pass values to $OVERRIDE_RUN_DOMAIN, $run_domain.
-      Reset RUN_MRGGRID and RUN_M3STAT before calling runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Domain step
+      or program.
   RUN_M3STAT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the m3stat tool for
       checking model-ready NetCDF outputs.
   RUN_MRGGRID:
     default: ''
-    description: Boolean (Y/N) flag. Reset RUN_MRGGRID and RUN_M3STAT before calling
-      runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Mrggrid step
+      or program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SOURCESENS:
     default: ''
-    description: Boolean (Y/N) flag.
+    description: Boolean (Y/N) flag indicating whether to execute the Sourcesens step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -4077,7 +4109,7 @@ smk_or_MOVES_merge_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
 smk_or_annual_forQA_MOVES_emf.csh:
   ASSIGNS_FILE:
     default: ''
@@ -4242,7 +4274,7 @@ smk_or_annual_forQA_MOVES_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MOVES_TYPE:
     default: ''
@@ -4353,8 +4385,8 @@ smk_or_annual_forQA_MOVES_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -4365,30 +4397,36 @@ smk_or_annual_forQA_MOVES_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_M3XTRACT:
     default: ''
-    description: Used to define or pass values to $run_m3xtract.
+    description: Boolean (Y/N) flag indicating whether to execute the M3Xtract step
+      or program.
   RUN_MOVESMRG:
     default: ''
-    description: Used to define or pass values to $run_movesmrg.
+    description: Boolean (Y/N) flag indicating whether to execute the Movesmrg step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -4399,8 +4437,8 @@ smk_or_annual_forQA_MOVES_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -4443,8 +4481,8 @@ smk_or_annual_forQA_MOVES_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -4470,7 +4508,7 @@ smk_or_annual_forQA_MOVES_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -4696,7 +4734,7 @@ smk_or_monthly_MOVES_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MOVES_TYPE:
     default: ''
@@ -4859,8 +4897,8 @@ smk_or_monthly_MOVES_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
@@ -4871,30 +4909,36 @@ smk_or_monthly_MOVES_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_M3XTRACT:
     default: ''
-    description: Used to define or pass values to $run_m3xtract.
+    description: Boolean (Y/N) flag indicating whether to execute the M3Xtract step
+      or program.
   RUN_MOVESMRG:
     default: ''
-    description: Used to define or pass values to $run_movesmrg.
+    description: Boolean (Y/N) flag indicating whether to execute the Movesmrg step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -4905,8 +4949,8 @@ smk_or_monthly_MOVES_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -4992,8 +5036,8 @@ smk_or_monthly_MOVES_emf.csh:
     description: Used to define or pass values to $SPDIST.
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -5049,7 +5093,7 @@ smk_or_monthly_MOVES_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -5174,7 +5218,7 @@ smk_pt_annual_byday_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -5201,12 +5245,11 @@ smk_pt_annual_byday_emf.csh:
       files.
   PTMP_FRI:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf.
   PTMP_MON:
     default: ''
-    description: Used to define or pass values to ${PTMPNAME}${g_stdate_temp}.ncf,
-      $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf,
+      ${PTMPNAME}${g_stdate_temp}.ncf. Set PTMP files for BYDAY approach
   PTMP_SAT:
     default: ''
     description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$sat_date.ncf,
@@ -5217,16 +5260,15 @@ smk_pt_annual_byday_emf.csh:
       $PTMP_MON.
   PTMP_THU:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf.
   PTMP_TUE:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf.
+      Set PTMP files for BYDAY approach
   PTMP_WED:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf.
+      Set PTMP files for BYDAY approach
   QA_LABEL:
     default: ''
     description: Label applied to report outputs for tracking QA scenarios.
@@ -5245,9 +5287,7 @@ smk_pt_annual_byday_emf.csh:
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -5268,16 +5308,20 @@ smk_pt_annual_byday_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
@@ -5325,8 +5369,8 @@ smk_pt_annual_byday_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -5352,7 +5396,7 @@ smk_pt_annual_byday_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -5539,15 +5583,11 @@ smk_pt_annual_onetime_emf.csh:
   REPCONFIG_INV2:
     default: ''
     description: Specifies the filepath for a secondary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv2'. This provides an alternative
-      reporting suite for inventory validation, allowing for distinct QA protocols
-      without overwriting the base REPCONFIG_INV configuration.
+      file, active only when QA_TYPE is set to 'inv2'.
   REPCONFIG_INV3:
     default: ''
     description: Specifies the filepath for a tertiary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv3'. This supports specialized multi-tier
-      QA processing by enabling a third independent configuration for comprehensive
-      inventory auditing.
+      file, active only when QA_TYPE is set to 'inv3'.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -5608,39 +5648,40 @@ smk_pt_annual_onetime_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_CNTLMAT:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_cntlmat.
-      month-dependent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cntlmat step
+      or program.
   RUN_ELEVPOINT:
     default: ''
-    description: Used to define or pass values to $run_elevpoint. (C. Allen) Run Elevpoint
-      for each day; RUN_ELEVPOINT is always N unless ELEVPOINT_DAILY == Y (set earlier
-      in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Elevpoint step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART1B:
     default: ''
-    description: set to N so doesn't remove projection matrix next time source ASSIGNS
+    description: Boolean (Y/N) flag indicating whether to execute the Part1B step
+      or program.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKREPORT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to generate state reports using
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -5677,7 +5718,7 @@ smk_pt_annual_onetime_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   USE_FF10_DAILY_POINT:
     default: ''
     description: Boolean (Y/N) flag. once for the year now rather than separately
@@ -5758,10 +5799,12 @@ smk_pt_cemscan_emf.csh:
       file names.
   RUN_CEMSCAN:
     default: ''
-    description: time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cemscan step
+      or program.
   RUN_PART0:
     default: ''
-    description: 'Assignments like: Y, N'
+    description: Boolean (Y/N) flag indicating whether to execute the Part0 step or
+      program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -5934,7 +5977,7 @@ smk_pt_daily_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -5984,9 +6027,7 @@ smk_pt_daily_emf.csh:
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -5995,20 +6036,20 @@ smk_pt_daily_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_ELEVPOINT:
     default: ''
-    description: Used to define or pass values to $run_elevpoint. (C. Allen) Run Elevpoint
-      for each day; RUN_ELEVPOINT is always N unless ELEVPOINT_DAILY == Y (set earlier
-      in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Elevpoint step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_HOLIDAYS:
     default: ''
     description: Boolean (Y/N) flag denoting whether to process specific holiday dates
       using distinct temporal profiles.
   RUN_LAYALLOC:
     default: ''
-    description: Used to define or pass values to $run_layalloc.
+    description: Boolean (Y/N) flag indicating whether to execute the Layalloc step
+      or program.
   RUN_LAYPOINT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Laypoint SMOKE
@@ -6019,28 +6060,32 @@ smk_pt_daily_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
@@ -6051,8 +6096,8 @@ smk_pt_daily_emf.csh:
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
@@ -6088,8 +6133,8 @@ smk_pt_daily_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -6115,7 +6160,7 @@ smk_pt_daily_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -6229,7 +6274,7 @@ smk_pt_monthly_byday_emf.csh:
       '1 2 3').
   MONTH_ARRAY:
     default: ''
-    description: Used to define or pass values to $mon, $m. Determine dates to run
+    description: Used to define or pass values to $m, $mon. Determine dates to run
       in this month
   MRGDATE_FILES:
     default: ''
@@ -6256,12 +6301,11 @@ smk_pt_monthly_byday_emf.csh:
       files.
   PTMP_FRI:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$fri_date.ncf.
   PTMP_MON:
     default: ''
-    description: Used to define or pass values to ${PTMPNAME}${g_stdate_temp}.ncf,
-      $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$mon_date.ncf,
+      ${PTMPNAME}${g_stdate_temp}.ncf. Set PTMP files for BYDAY approach
   PTMP_SAT:
     default: ''
     description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$sat_date.ncf,
@@ -6272,16 +6316,15 @@ smk_pt_monthly_byday_emf.csh:
       $PTMP_MON.
   PTMP_THU:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf,
-      $PTMP_MON.
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$thu_date.ncf.
   PTMP_TUE:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$tue_date.ncf.
+      Set PTMP files for BYDAY approach
   PTMP_WED:
     default: ''
-    description: Used to define or pass values to $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf,
-      $PTMP_MON. Set PTMP files for BYDAY approach
+    description: Used to define or pass values to $PTMP_MON, $INTERMED/ptmp_${SUBSECT}_${CASE}_$wed_date.ncf.
+      Set PTMP files for BYDAY approach
   QA_LABEL:
     default: ''
     description: Label applied to report outputs for tracking QA scenarios.
@@ -6300,9 +6343,7 @@ smk_pt_monthly_byday_emf.csh:
   REPCONFIG_TEMP:
     default: ''
     description: Specifies the filepath for the Smkreport configuration (REPCONFIG)
-      file dedicated to temporal QA analysis, active when QA_TYPE is set to 'temporal'.
-      This configuration is optimized for verifying temporal allocations, hourly emissions
-      profiles, and daily summary statistics.
+      file dedicated to temporal QA analysis.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -6323,16 +6364,20 @@ smk_pt_monthly_byday_emf.csh:
       checking model-ready NetCDF outputs.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PYTHON_ANNUAL:
     default: ''
-    description: and if RUN_PYTHON_ANNUAL parameter is Y (default is N)
+    description: Boolean (Y/N) flag indicating whether to execute the Python Annual
+      step or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
@@ -6380,8 +6425,8 @@ smk_pt_monthly_byday_emf.csh:
       cb6r3_ae6, saprc07tc).
   SPINUP_ARRAY:
     default: ''
-    description: Used to define or pass values to $spinup_array[$mc]. Determine dates
-      to run in this month
+    description: Spin-up period parameter (array) used to configure the model initialization
+      window prior to the formal simulation start date.
   SPINUP_DURATION:
     default: ''
     description: The number of days to run prior to the formal start date to spin
@@ -6407,7 +6452,7 @@ smk_pt_monthly_byday_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   T_TYPE:
     default: ''
     description: Target temporal type for operations, assigned from L_TYPE (Laypoint)
@@ -6566,15 +6611,11 @@ smk_pt_monthly_onetime_emf.csh:
   REPCONFIG_INV2:
     default: ''
     description: Specifies the filepath for a secondary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv2'. This provides an alternative
-      reporting suite for inventory validation, allowing for distinct QA protocols
-      without overwriting the base REPCONFIG_INV configuration.
+      file, active only when QA_TYPE is set to 'inv2'.
   REPCONFIG_INV3:
     default: ''
     description: Specifies the filepath for a tertiary Smkreport configuration (REPCONFIG)
-      file, active only when QA_TYPE is set to 'inv3'. This supports specialized multi-tier
-      QA processing by enabling a third independent configuration for comprehensive
-      inventory auditing.
+      file, active only when QA_TYPE is set to 'inv3'.
   REPLABEL:
     default: ''
     description: Internal label used by Smkreport for tracking sectors or outputs.
@@ -6627,32 +6668,32 @@ smk_pt_monthly_onetime_emf.csh:
     description: Directory path where SMOKE reports and QA outputs are written.
   RUN_ELEVPOINT:
     default: ''
-    description: Used to define or pass values to $run_elevpoint. (C. Allen) Run Elevpoint
-      for each day; RUN_ELEVPOINT is always N unless ELEVPOINT_DAILY == Y (set earlier
-      in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Elevpoint step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKREPORT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to generate state reports using
       Smkreport.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -6692,7 +6733,7 @@ smk_pt_monthly_onetime_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
   USE_FF10_DAILY_POINT:
     default: ''
     description: Boolean (Y/N) flag. once for the year now rather than separately
@@ -6712,7 +6753,7 @@ smk_run_beis4.csh:
       used as part of readme
   BFAC:
     default: ''
-    description: Used to define or pass values to $W_BFAC, $S_BFAC. Use summer emission
+    description: Used to define or pass values to $S_BFAC, $W_BFAC. Use summer emission
       factors, if they are set for first rawbio run
   BGRD:
     default: ''
@@ -6814,87 +6855,100 @@ smk_run_beis4.csh:
       $RADLIST'
   RUN_CEMSCAN:
     default: ''
-    description: time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cemscan step
+      or program.
   RUN_ELEVPOINT:
     default: ''
-    description: Used to define or pass values to $run_elevpoint. (C. Allen) Run Elevpoint
-      for each day; RUN_ELEVPOINT is always N unless ELEVPOINT_DAILY == Y (set earlier
-      in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Elevpoint step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_LAYALLOC:
     default: ''
-    description: Used to define or pass values to $run_layalloc.
+    description: Boolean (Y/N) flag indicating whether to execute the Layalloc step
+      or program.
   RUN_LAYPOINT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Laypoint SMOKE
       program.
   RUN_MBSETUP:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_MBSETUP ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Mbsetup step
+      or program.
   RUN_METSCAN:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_METSCAN ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Metscan step
+      or program.
   RUN_MOVESMRG:
     default: ''
-    description: Used to define or pass values to $run_movesmrg.
+    description: Boolean (Y/N) flag indicating whether to execute the Movesmrg step
+      or program.
   RUN_MRGGRID:
     default: ''
-    description: Boolean (Y/N) flag. Reset RUN_MRGGRID and RUN_M3STAT before calling
-      runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Mrggrid step
+      or program.
   RUN_NORMBEIS4:
     default: ''
-    description: Time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Normbeis4 step
+      or program.
   RUN_PART0:
     default: ''
-    description: 'Assignments like: Y, N'
+    description: Boolean (Y/N) flag indicating whether to execute the Part0 step or
+      program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PREMOBL:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_PREMOBL ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Premobl step
+      or program.
   RUN_RAWBIO:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_RAWBIO ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Rawbio step
+      or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
       program.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
       program.
   RUN_TMPBEIS4:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_tmpbeis4.
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbeis4 step
+      or program.
   RUN_TMPBIO:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_TMPBIO ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbio step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -6913,7 +6967,7 @@ smk_run_beis4.csh:
     description: 'Evaluated dynamically in scripts: # setenv MEFLIST $SMK_EMISPATH/meflist.txt'
   SMK_PING_YN:
     default: ''
-    description: 'Assignment context: Y'
+    description: Boolean (Y/N) flag controlling the smk ping behavior.
   SPC:
     default: ''
     description: Speciation identifier/mechanism used for this specific run (e.g.,
@@ -6934,9 +6988,9 @@ smk_run_beis4.csh:
       SMOKE processing runtimes.
   TMPLOG:
     default: ''
-    description: Used to define or pass values to $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
-      $OUTLOG/smk2emis_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log, $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log,
-      $OUTLOG/smkmerge_${SRCABBR}_${CASE}_${ESDATE}_${G...
+    description: Used to define or pass values to $OUTLOG/metscan_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
+      $OUTLOG/${nb}_${SRCABBR}_${CASE}_$GRID.log, $OUTLOG/mrggrid_${SRCABBR}_${CASE}_${ESDATE}_${GRID}_${SPC}.log,
+      $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log...
   TM_SRC:
     default: ''
     description: 'Evaluated dynamically in scripts: echo '' ''$TM_SRC'
@@ -6948,7 +7002,7 @@ smk_run_beis4.csh:
     description: 'Evaluated dynamically in scripts: echo '' ''$UT_SRC'
   WRF_VERSION:
     default: ''
-    description: 'Assignments like: 3, 4'
+    description: 'Assignments like: 4, 3'
   W_BFAC:
     default: ''
     description: 'Evaluated dynamically in scripts: if ( $?W_BFAC && $?BGRDW ) then'
@@ -6960,7 +7014,7 @@ smk_run_v9.csh:
       used as part of readme
   BFAC:
     default: ''
-    description: Used to define or pass values to $W_BFAC, $S_BFAC. Use summer emission
+    description: Used to define or pass values to $S_BFAC, $W_BFAC. Use summer emission
       factors, if they are set for first rawbio run
   BGRD:
     default: ''
@@ -7062,87 +7116,100 @@ smk_run_v9.csh:
       $RADLIST'
   RUN_CEMSCAN:
     default: ''
-    description: time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Cemscan step
+      or program.
   RUN_ELEVPOINT:
     default: ''
-    description: Used to define or pass values to $run_elevpoint. (C. Allen) Run Elevpoint
-      for each day; RUN_ELEVPOINT is always N unless ELEVPOINT_DAILY == Y (set earlier
-      in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Elevpoint step
+      or program.
   RUN_GRDMAT:
     default: ''
-    description: Used to define or pass values to $run_grdmat. run GRDMAT only if
-      not PART1ONLY
+    description: Boolean (Y/N) flag indicating whether to execute the Grdmat step
+      or program.
   RUN_LAYALLOC:
     default: ''
-    description: Used to define or pass values to $run_layalloc.
+    description: Boolean (Y/N) flag indicating whether to execute the Layalloc step
+      or program.
   RUN_LAYPOINT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Laypoint SMOKE
       program.
   RUN_MBSETUP:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_MBSETUP ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Mbsetup step
+      or program.
   RUN_METSCAN:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_METSCAN ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Metscan step
+      or program.
   RUN_MOVESMRG:
     default: ''
-    description: Used to define or pass values to $run_movesmrg.
+    description: Boolean (Y/N) flag indicating whether to execute the Movesmrg step
+      or program.
   RUN_MRGGRID:
     default: ''
-    description: Boolean (Y/N) flag. Reset RUN_MRGGRID and RUN_M3STAT before calling
-      runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Mrggrid step
+      or program.
   RUN_NORMBEIS3:
     default: ''
-    description: Time-independent programs
+    description: Boolean (Y/N) flag indicating whether to execute the Normbeis3 step
+      or program.
   RUN_PART0:
     default: ''
-    description: 'Assignments like: Y, N'
+    description: Boolean (Y/N) flag indicating whether to execute the Part0 step or
+      program.
   RUN_PART1:
     default: ''
-    description: Ensure new controller variables are set
+    description: Boolean (Y/N) flag indicating whether to execute the Part1 step or
+      program.
   RUN_PART2:
     default: ''
-    description: RUN_SMKMERGE needs to be Y for county or state reports to run
+    description: Boolean (Y/N) flag indicating whether to execute the Part2 step or
+      program.
   RUN_PART3:
     default: ''
-    description: (C. Allen) Run Elevpoint for each day; RUN_ELEVPOINT is always N
-      unless ELEVPOINT_DAILY == Y (set earlier in the script)
+    description: Boolean (Y/N) flag indicating whether to execute the Part3 step or
+      program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_PREMOBL:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_PREMOBL ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Premobl step
+      or program.
   RUN_RAWBIO:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_RAWBIO ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Rawbio step
+      or program.
   RUN_SMK2EMIS:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the Smk2emis tool (usually
       for CAMx conversion).
   RUN_SMKINVEN:
     default: ''
-    description: Used to define or pass values to $run_smkinven. time-independent
-      programs (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Smkinven step
+      or program.
   RUN_SMKMERGE:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Smkmerge SMOKE
       program.
   RUN_SPCMAT:
     default: ''
-    description: Used to define or pass values to $run_spcmat. time-independent programs
-      (except Smkinven run monthly for CEM import)
+    description: Boolean (Y/N) flag indicating whether to execute the Spcmat step
+      or program.
   RUN_TEMPORAL:
     default: ''
     description: Boolean (Y/N) flag indicating whether to execute the Temporal SMOKE
       program.
   RUN_TMPBEIS3:
     default: ''
-    description: Boolean (Y/N) flag. Used to define or pass values to $run_tmpbeis3.
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbeis3 step
+      or program.
   RUN_TMPBIO:
     default: ''
-    description: 'Evaluated dynamically in scripts: if ( $?RUN_TMPBIO ) then'
+    description: Boolean (Y/N) flag indicating whether to execute the Tmpbio step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -7161,7 +7228,7 @@ smk_run_v9.csh:
     description: 'Evaluated dynamically in scripts: # setenv MEFLIST $SMK_EMISPATH/meflist.txt'
   SMK_PING_YN:
     default: ''
-    description: 'Assignment context: Y'
+    description: Boolean (Y/N) flag controlling the smk ping behavior.
   SPC:
     default: ''
     description: Speciation identifier/mechanism used for this specific run (e.g.,
@@ -7182,9 +7249,9 @@ smk_run_v9.csh:
       SMOKE processing runtimes.
   TMPLOG:
     default: ''
-    description: Used to define or pass values to $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
-      $OUTLOG/smk2emis_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log, $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log,
-      $OUTLOG/smkmerge_${SRCABBR}_${CASE}_${ESDATE}_${G...
+    description: Used to define or pass values to $OUTLOG/metscan_${SRCABBR}_${CASE}_${ESDATE}_$GRID.log,
+      $OUTLOG/${nb}_${SRCABBR}_${CASE}_$GRID.log, $OUTLOG/mrggrid_${SRCABBR}_${CASE}_${ESDATE}_${GRID}_${SPC}.log,
+      $OUTLOG/temporal_${SRCABBR}_${CASE}_${ESDATE}.log...
   TM_SRC:
     default: ''
     description: 'Evaluated dynamically in scripts: echo '' ''$TM_SRC'
@@ -7320,8 +7387,8 @@ smk_sectormerge_emf.csh:
       get registered into the EMF even on failure.
   REPMERGE_ADJ:
     default: ''
-    description: Used to define or pass values to $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv,
-      $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
+    description: Used to define or pass values to $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv,
+      $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
       Define the mrggrid reports if using a...
   REPOUT:
     default: ''
@@ -7331,22 +7398,24 @@ smk_sectormerge_emf.csh:
     description: Path to a run-settings configuration file containing batch parameters.
   RUN_DOMAIN:
     default: ''
-    description: Used to define or pass values to $OVERRIDE_RUN_DOMAIN, $run_domain.
-      Reset RUN_MRGGRID and RUN_M3STAT before calling runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Domain step
+      or program.
   RUN_M3STAT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the m3stat tool for
       checking model-ready NetCDF outputs.
   RUN_MRGGRID:
     default: ''
-    description: Boolean (Y/N) flag. Reset RUN_MRGGRID and RUN_M3STAT before calling
-      runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Mrggrid step
+      or program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SOURCESENS:
     default: ''
-    description: Boolean (Y/N) flag.
+    description: Boolean (Y/N) flag indicating whether to execute the Sourcesens step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -7387,7 +7456,7 @@ smk_sectormerge_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].
 smk_sectormerge_partial_emf.csh:
   ASSIGNS:
     default: ''
@@ -7509,8 +7578,8 @@ smk_sectormerge_partial_emf.csh:
       get registered into the EMF even on failure.
   REPMERGE_ADJ:
     default: ''
-    description: Used to define or pass values to $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv,
-      $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
+    description: Used to define or pass values to $REPOUT/mrggrid/$GRID/$SPC/rep_adj_{$namelabel}.csv,
+      $REPOUT/mrggrid/$SECTOR/$GRID/$SPC/rep_adj_{$namelabel}.csv, $REPOUT/mrggrid/$GRID/$SPC/rep_adj_${SECTOR}_{$namelabel}.csv.
       Define the mrggrid reports if using a...
   REPOUT:
     default: ''
@@ -7520,22 +7589,24 @@ smk_sectormerge_partial_emf.csh:
     description: Path to a run-settings configuration file containing batch parameters.
   RUN_DOMAIN:
     default: ''
-    description: Used to define or pass values to $OVERRIDE_RUN_DOMAIN, $run_domain.
-      Reset RUN_MRGGRID and RUN_M3STAT before calling runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Domain step
+      or program.
   RUN_M3STAT:
     default: ''
     description: Boolean (Y/N) flag indicating whether to run the m3stat tool for
       checking model-ready NetCDF outputs.
   RUN_MRGGRID:
     default: ''
-    description: Boolean (Y/N) flag. Reset RUN_MRGGRID and RUN_M3STAT before calling
-      runsettings.csh
+    description: Boolean (Y/N) flag indicating whether to execute the Mrggrid step
+      or program.
   RUN_PART4:
     default: ''
-    description: Set EMF_PERIOD for this day
+    description: Boolean (Y/N) flag indicating whether to execute the Part4 step or
+      program.
   RUN_SOURCESENS:
     default: ''
-    description: Boolean (Y/N) flag.
+    description: Boolean (Y/N) flag indicating whether to execute the Sourcesens step
+      or program.
   S:
     default: ''
     description: Source category identifier (e.g., area, point, mobile, biogenic)
@@ -7576,4 +7647,4 @@ smk_sectormerge_partial_emf.csh:
       TIMELOG file.
   TLABEL:
     default: ''
-    description: Used to define or pass values to $argv[4], $argv[5], $argv[6], $argv[3].
+    description: Used to define or pass values to $argv[4], $argv[3], $argv[6], $argv[5].

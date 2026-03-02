@@ -96,23 +96,99 @@ class SMKContext:
     
     # Variables that suggest a file is an INPUT (to be ignored in output scans)
     INPUT_BLACKLIST = [
-        "INPUT", "INV", "XREF", "MAP", "PROF", "FAC", "SRG", "GEO", "MET",
+        "INV", "XREF", "MAP", "PROF", "FAC", "SRG", "GEO", "MET",
         "CONFIG", "DESC", "INC", "GRIDDESC", "SRGDESC", "SRGPRO", "TPRO",
-        "GPRO", "BCON", "ICON", "DATES", "ROOT", "DIR"
+        "GPRO", "BCON", "ICON", "DATE", "DATES", "GRID", "SPC", "CASE", "REGION",
+        "STDATE", "STTIME", "YEAR", "MONTH", "DAY", "INSTALL_DIR"
     ]
     
     # Variables that strongly suggest a file is an OUTPUT or LOG
-    OUTPUT_HINTS = ["OUT", "REPOUT", "PLAY", "INLN", "LOG", "NCF", "PREMERGED", "MRG"]
+    OUTPUT_HINTS = ["OUT", "REPOUT", "PLAY", "INLN", "LOG", "NCF", "PREMERGED", "MRG",
+                    "AREA", "POINT", "MOBILE", "ASCIIDUMP"]
+
+    # SMKINVEN primary output variable names that may contain INPUT_BLACKLIST substrings
+    # (e.g. REPINVEN contains "INV") — these bypass the blacklist gate in _scan_outputs
+    SMKINVEN_OUTPUT_VARS = {"AREA", "POINT", "MOBILE", "ASCIIDUMP", "REPINVEN"}
     
-    # Paths to ignore during output scans
+    # Variables that suggest a directory is an OUTPUT directory
+    OUTPUT_DIR_HINTS = ["OUT", "REPOUT", "INTERMED", "PREMERGED", "LOGS", "OUTPUT", "IMD_ROOT", "OUT_ROOT"]
+    
+    # Paths to ignore during output scans (to filter out inputs and system files)
     PATH_BLACKLIST = [
         "/ge_dat/", "/input/", "/inventory/", "/srg/", "/crossref/",
-        "/profiles/", "/scripts/", "/smoke/"
+        "/profiles/", "/bin/", "/ioapi/", "/etc/", "/subsys/", "/src/",
+        "/.venv/", "/__pycache__/"
     ]
+
+    # Known output directory path fragments — used to reject false-positive inputs in Step 0
+    OUTPUT_PATH_HINTS = [
+        "/intermed/", "/outputs/", "/reports/", "/logs/", "/premerged/", "/merge/"
+    ]
+
+    # Common parameters that contain "OUT" or "REP" but are not directories
+    PARAM_BLACKLIST = [
+        "OUTZONE", "REPORT_DEFAULTS", "YN", "OFFSET", "LENGTH", "UNITS", 
+        "FORMAT", "VNAME", "BY_HOUR", "BY_DAY", "OUT_FORMAT", "OUTPUT_FORMAT",
+        "REPCONFIG", "REPCATS", "REPORT_STAT", "SMK_SOURCE", "MRG_SOURCE",
+        "RUN_PART", "USE_", "RUN_", "DO_", "_YN", "LABEL", "NAME", "EMF_LOGNAME",
+        "EMF_LOGGERPYTHONDIR", "MRGDATE_FILES", "PYTHON", "PATH", "LD_LIBRARY_PATH",
+        "EMF_CLIENT", "EMF_JOBNAME"
+    ]
+    
+    # Static root containers that are NOT outputs themselves but contain outputs
+    STATIC_ROOTS = [
+        "PROJECT_ROOT", "INSTALL_DIR", "MET_ROOT", "INV_ROOT", "GE_ROOT", 
+        "OUT_ROOT", "IMD_ROOT", "EMF_ROOT", "SMK_ROOT", "SCRIPTS", "BIN", "HOME",
+        "DAT_ROOT", "DATA_ROOT", "DATA", "GE_DAT", "INV_DAT", "GE_DATA", "EMF_DATA", "SMK_DATA"
+    ]
+
+    # Variable name fragment → SMOKE program mapping (derived from smoke_env_vars.yaml).
+    # Checked as substrings BEFORE the generic TOOLS loop in sanitize_tool_name.
+    VAR_PREFIX_MAP = {
+        # ── SMKINVEN ─────────────────────────────
+        "ARINV":    "SMKINVEN",   # area raw inventory
+        "PTINV":    "SMKINVEN",   # point raw inventory
+        "MBINV":    "SMKINVEN",   # mobile raw inventory
+        "MONINV":   "SMKINVEN",   # onroad monitor inventory
+        "INVTABLE": "SMKINVEN",   # inventory species table
+        "COSTCY":   "SMKINVEN",   # county/state/country codes
+        "GEOCODE":  "SMKINVEN",   # expanded geographic code levels
+        # ── GRDMAT ───────────────────────────────
+        "GSREF":    "GRDMAT",     # speciation/gridding cross-reference
+        "GSPRO":    "GRDMAT",     # speciation profile
+        "AGREF":    "GRDMAT",     # area gridding surrogate cross-reference
+        "MGREF":    "GRDMAT",     # mobile gridding surrogate cross-reference
+        "PGREF":    "GRDMAT",     # point gridding surrogate cross-reference
+        "AGSUP":    "GRDMAT",     # area gridding supplemental
+        "MGSUP":    "GRDMAT",     # mobile gridding supplemental
+        "SRGDESC":  "GRDMAT",     # surrogate description file
+        "SRGPRO":   "GRDMAT",     # surrogate profile file
+        "GRIDDESC": "GRDMAT",     # grid/projection description
+        # ── TEMPORAL ─────────────────────────────
+        "ATPRO":    "TEMPORAL",   # area temporal profiles
+        "PTPRO":    "TEMPORAL",   # point temporal profiles
+        "MTPRO":    "TEMPORAL",   # mobile temporal profiles
+        "ATREF":    "TEMPORAL",   # area temporal cross-reference
+        "PTREF":    "TEMPORAL",   # point temporal cross-reference
+        "MTREF":    "TEMPORAL",   # mobile temporal cross-reference
+        "HOLIDAYS": "TEMPORAL",   # holidays file
+        # ── LAYPOINT ─────────────────────────────
+        "MET_CRO":  "LAYPOINT",   # MCIP meteorology cross files
+        "MET_DOT":  "LAYPOINT",   # MCIP meteorology dot file
+        "METCRO":   "LAYPOINT",   # alternate naming convention
+        "METDOT":   "LAYPOINT",   # alternate naming convention
+        # ── CNTLMAT ──────────────────────────────
+        "GCNTL":    "CNTLMAT",    # growth/control packet file
+    }
 
     @staticmethod
     def sanitize_tool_name(name: str) -> str:
         name_upper = name.upper()
+        # 1. Check explicit variable-fragment → tool mapping first
+        for frag, tool in SMKContext.VAR_PREFIX_MAP.items():
+            if frag in name_upper:
+                return tool
+        # 2. Fall back to generic SMOKE tool name substring scan
         for tool in SMKContext.TOOLS:
             if tool in name_upper:
                 return tool
@@ -122,32 +198,60 @@ class SMKContext:
 
 _VAR_PAT = re.compile(r"\$\{?([A-Za-z0-9_]+)\}?")
 
-def parse_tcsh_all_env_vars(path: str) -> Dict[str, str]:
-    out: Dict[str, str] = {}
+def parse_tcsh_all_env_vars(path: str, env_context: Dict[str, str] = None) -> Dict[str, str]:
+    out: Dict[str, str] = env_context.copy() if env_context else {}
     if not os.path.exists(path): return out
-    p_env = re.compile(r"^\s*setenv\s+([A-Za-z0-9_]+)\s+(.+?)\s*$")
-    p_set = re.compile(r"^\s*set\s+([A-Za-z0-9_]+)\s*=\s*(.+?)\s*$")
-    with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-        for raw in fh:
-            line = raw.rstrip("\n")
-            m = p_env.match(line) or p_set.match(line)
-            if not m: continue
-            var, val_part = m.group(1), m.group(2).strip()
-            try:
-                tokens = shlex.split(val_part, posix=True)
-                out[var] = tokens[0] if tokens else ""
-            except Exception:
-                out[var] = val_part.strip('"')
+    
+    p_env = re.compile(r"^\s*setenv\s+([A-Za-z0-9_]+)(?:\s+|=)(.+?)$")
+    p_set = re.compile(r"^\s*set\s+([A-Za-z0-9_]+)(?:\s*=\s*|\s+)(.+?)$")
+    p_src = re.compile(r"^\s*source\s+(.+?)$")
+    
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+            for raw in fh:
+                line = raw.split("#")[0].strip()
+                if not line: continue
+                
+                # Recursive source support
+                m_src = p_src.match(line)
+                if m_src:
+                    src_p = m_src.group(1).strip().strip('"\'')
+                    if "$" in src_p:
+                        exp_src = recursive_expand(src_p, out)
+                    else:
+                        exp_src = src_p
+                    
+                    if not os.path.isabs(exp_src):
+                        exp_src = os.path.normpath(os.path.join(os.path.dirname(path), exp_src))
+                    
+                    if os.path.exists(exp_src) and exp_src != path:
+                        # Pass the current environment so nested variables resolve
+                        out.update(parse_tcsh_all_env_vars(exp_src, out))
+                    continue
+
+                m = p_env.match(line) or p_set.match(line)
+                if not m: continue
+                var, val_part = m.group(1), m.group(2).strip().strip('"\'()')
+                
+                # Expand using current context
+                out[var] = recursive_expand(val_part, out)
+    except: pass
     return out
 
-def recursive_expand(val: str, env: Dict[str, str], depth: int = 12) -> str:
+def recursive_expand(val: str, env: Dict[str, str], depth: int = 20) -> str:
+    if not val or not isinstance(val, str) or "$" not in val: return val
     result = val
     for _ in range(depth):
         hits = _VAR_PAT.findall(result)
         if not hits: break
+        orig = result
         for v in set(hits):
-            if v in env:
-                result = re.sub(rf"\${{?{v}}}?", env[v], result)
+            if v in env and env[v] is not None:
+                # Literal replacement for safety
+                target_long = f"${{{v}}}"
+                target_short = f"${v}"
+                result = result.replace(target_long, env[v]).replace(target_short, env[v])
+        if result == orig: break
     return result
 
 def is_functionally_empty(path: str) -> bool:
@@ -232,12 +336,18 @@ def get_nc_metadata(path):
     except Exception as e:
         return f"[Binary NetCDF File]\n\nError reading with netCDF4: {e}"
 
-def parse_script_vars(script_path: str, overrides: Dict[str, str] = None, raw_content: str = None) -> List[Dict]:
+def parse_script_vars(script_path: str, overrides: Dict[str, str] = None, raw_content: str = None) -> Tuple[List[Dict], Dict[str, str]]:
     dir_defs = find_dir_defs(script_path)
-    env: Dict[str, str] = parse_tcsh_all_env_vars(dir_defs) if dir_defs else {}
+    env: Dict[str, str] = {}
+    
+    # 1. Base Environment from directory_definitions and sourced files
+    if dir_defs:
+        env.update(parse_tcsh_all_env_vars(dir_defs, env))
+
     rows: List[Dict] = []
-    p_env = re.compile(r"^\s*setenv\s+([A-Za-z0-9_]+)\s+(.+?)\s*$")
-    p_set = re.compile(r"^\s*set\s+([A-Za-z0-9_]+)\s*=\s*(.+?)\s*$")
+    p_env = re.compile(r"^\s*setenv\s+([A-Za-z0-9_]+)(?:\s+|=)(.+?)\s*$")
+    p_set = re.compile(r"^\s*set\s+([A-Za-z0-9_]+)(?:\s*=\s*|\s+)(.+?)\s*$")
+    p_src = re.compile(r"^\s*source\s+(.+?)\s*$")
 
     if raw_content is not None:
         lines = raw_content.splitlines()
@@ -248,26 +358,54 @@ def parse_script_vars(script_path: str, overrides: Dict[str, str] = None, raw_co
         except Exception:
             lines = []
 
+    # PASS 1: Pre-collect all environment variables defined in this script
+    for raw in lines:
+        stripped = raw.split("#")[0].strip()
+        if not stripped: continue
+        m = p_env.match(stripped) or p_set.match(stripped)
+        if m:
+            var = m.group(1)
+            val_part = m.group(2).strip().strip('"\'()')
+            # If overridden, use override value immediately
+            if overrides and var in overrides:
+                env[var] = overrides[var]
+            else:
+                try:
+                    tokens = shlex.split(val_part, posix=True)
+                    env[var] = tokens[0] if tokens else ""
+                except Exception:
+                    env[var] = val_part.strip('"\'')
+
+    # Deep expand local variables
+    for _ in range(3):
+        for k in env:
+            env[k] = recursive_expand(env[k], env)
+
+    # PASS 2: Re-process the script to build rows and follow sourced files
     for lineno, raw in enumerate(lines, 1):
         line = raw.rstrip("\n")
-        stripped = line.lstrip()
-        if stripped.startswith("#") or not stripped: continue
-        m = p_env.match(line) or p_set.match(line)
+        stripped = line.split("#")[0].strip()
+        if not stripped: continue
+        
+        # Follow Sourced Files (e.g., ASSIGNS.emf) using the collected environment
+        m_src = p_src.match(stripped)
+        if m_src:
+            src_p = m_src.group(1).strip().strip('"\'')
+            expanded_src = recursive_expand(src_p, env)
+            if not os.path.isabs(expanded_src):
+                 expanded_src = os.path.normpath(os.path.join(os.path.dirname(script_path), expanded_src))
+            
+            if os.path.exists(expanded_src) and expanded_src != script_path:
+                env.update(parse_tcsh_all_env_vars(expanded_src, env))
+            continue
+
+        m = p_env.match(stripped) or p_set.match(stripped)
         if not m: continue
         var = m.group(1)
-        val_part = m.group(2).strip()
-        try:
-            tokens = shlex.split(val_part, posix=True)
-            raw_val = tokens[0] if tokens else ""
-        except Exception:
-            raw_val = val_part.strip('"')
+        val_part = m.group(2).strip().strip('"\'()')
         
-        if overrides and var in overrides:
-            raw_val = overrides[var]
-
-        env[var] = recursive_expand(raw_val, env)
-        expanded = env[var]
-
+        # Determine status for the GUI row
+        expanded = env.get(var, "")
         status = "nopath"
         if re.match(r"^(/|\.\.?/)", expanded):
             if glob.glob(expanded):
@@ -275,10 +413,30 @@ def parse_script_vars(script_path: str, overrides: Dict[str, str] = None, raw_co
             else:
                 status = "missing"
 
-        kind = "setenv" if p_env.match(line) else "set"
-        rows.append(dict(var=var, value=raw_val, expanded=expanded,
+        kind = "setenv" if p_env.match(stripped) else "set"
+        rows.append(dict(var=var, value=val_part, expanded=expanded,
                          kind=kind, lineno=lineno, status=status))
-    return rows
+    
+    # 3. Final deep expansion pass for all variables and rows
+    for _ in range(5): 
+        for k in env:
+            env[k] = recursive_expand(env[k], env)
+            
+    for row in rows:
+        if overrides and row["var"] in overrides:
+            row["value"] = overrides[row["var"]]
+            row["expanded"] = overrides[row["var"]]
+        else:
+            row["expanded"] = recursive_expand(row["value"], env)
+        # Re-check status with fully expanded path
+        expanded = row["expanded"]
+        if expanded and re.match(r"^(/|\.\.?/)", expanded):
+             if glob.glob(expanded):
+                 row["status"] = "empty" if is_functionally_empty(expanded) else "ok"
+             else:
+                 row["status"] = "missing"
+        
+    return rows, env
 
 class CSHHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
@@ -610,6 +768,7 @@ class SMKRunApp(QMainWindow):
         QPushButton:pressed {{ background-color: #4752c4; }}
         QPushButton#success {{ background-color: {PALETTE['success']}; color: white; }}
         QPushButton#danger {{ background-color: {PALETTE['error']}; color: white; }}
+        QPushButton#danger:disabled {{ background-color: {PALETTE['border']}; color: {PALETTE['fg2']}; }}
         QPushButton:disabled {{ background-color: {PALETTE['border']}; color: {PALETTE['fg2']}; }}
         QTextEdit, QLineEdit, QComboBox {{
             background-color: {PALETTE['entry_bg']};
@@ -725,6 +884,14 @@ class SMKRunApp(QMainWindow):
         
         splitter.setSizes([300, 1300])
 
+    def _tab_index(self, title: str) -> int:
+        """Return the notebook index whose tabText matches *title* exactly.
+        Falls back to 0 if not found, so navigation never crashes."""
+        for i in range(self._notebook.count()):
+            if self._notebook.tabText(i) == title:
+                return i
+        return 0
+
     def _build_vars_tab(self, parent):
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -792,8 +959,6 @@ class SMKRunApp(QMainWindow):
         self._lbl_run_status.setFont(QFont("Inter", 10, QFont.Bold))
         ctrl.addWidget(self._lbl_run_status)
         
-        ctrl.addWidget(self._lbl_run_status)
-        
         layout.addLayout(ctrl)
         
         self._log_text = QPlainTextEdit()
@@ -854,23 +1019,6 @@ class SMKRunApp(QMainWindow):
         w = QWidget()
         layout = QVBoxLayout(w)
         
-        # Toolbar
-        tbar = QHBoxLayout()
-        btn_refresh = QPushButton("Refresh Output Files")
-        btn_refresh.clicked.connect(self._scan_outputs)
-        tbar.addWidget(btn_refresh)
-        
-        btn_browse = QPushButton("Browse...")
-        btn_browse.clicked.connect(self._browse_report)
-        tbar.addWidget(btn_browse)
-        
-        tbar.addStretch()
-        layout.addLayout(tbar)
-        
-        list_header = QLabel("DETECTED OUTPUTS (Grouped by SMOKE Program)")
-        list_header.setFont(QFont("Inter", 10, QFont.Bold))
-        list_header.setStyleSheet(f"color: {PALETTE['accent2']};")
-        layout.addWidget(list_header)
         
         self._file_tree = QTreeWidget()
         self._file_tree.setColumnCount(2)
@@ -897,18 +1045,6 @@ class SMKRunApp(QMainWindow):
         w = QWidget()
         layout = QVBoxLayout(w)
         
-        tbar = QHBoxLayout()
-        btn_refresh = QPushButton("Refresh Input Files")
-        btn_refresh.clicked.connect(self._scan_inputs)
-        tbar.addWidget(btn_refresh)
-        
-        tbar.addStretch()
-        layout.addLayout(tbar)
-        
-        list_header = QLabel("DETECTED INPUTS (Focus: SMKINVEN)")
-        list_header.setFont(QFont("Inter", 10, QFont.Bold))
-        list_header.setStyleSheet(f"color: {PALETTE['accent2']};")
-        layout.addWidget(list_header)
         
         self._input_file_tree = QTreeWidget()
         self._input_file_tree.setColumnCount(2)
@@ -1033,16 +1169,17 @@ class SMKRunApp(QMainWindow):
         self._load_source(path)
         self._scan_outputs()
         self._scan_inputs()
-        self._notebook.setCurrentIndex(0)
+        self._notebook.setCurrentIndex(self._tab_index("  Variables  "))
 
     def _load_vars(self, path: str):
-        self._var_rows = parse_script_vars(path)
+        self._var_rows, self._env = parse_script_vars(path)
         self._overrides.clear()
         self._refresh_var_tree()
         self._lbl_overrides.setText("No overrides set.")
 
     def _reload_vars(self):
-        if self._current_script: self._load_vars(self._current_script)
+        if self._current_script:
+            self._load_vars(self._current_script)
 
     def _refresh_var_tree(self):
         self._var_table.setRowCount(0)
@@ -1136,9 +1273,8 @@ class SMKRunApp(QMainWindow):
         
     def apply_override(self, var, value):
         self._overrides[var] = value
-        self._var_rows = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
+        self._var_rows, self._env = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
         self._refresh_var_tree()
-        self._check_paths()
         n = len(self._overrides)
         self._lbl_overrides.setText(f"{n} override(s) active" + (" + Patched" if self._script_override_content else ""))
 
@@ -1174,7 +1310,7 @@ class SMKRunApp(QMainWindow):
                 elif var in self._overrides: self._overrides.pop(var, None)
             
             # Cascade re-parse all paths dynamically
-            self._var_rows = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
+            self._var_rows, self._env = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
             self._refresh_var_tree()
             n = len(self._overrides)
             self._lbl_overrides.setText(f"{n} override(s): {', '.join(self._overrides)}" if n else "No overrides set.")
@@ -1244,9 +1380,8 @@ class SMKRunApp(QMainWindow):
             self._lbl_overrides.setText(msg)
             
             # Refresh variables from edited source
-            self._var_rows = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
+            self._var_rows, self._env = parse_script_vars(self._current_script, self._overrides, self._script_override_content)
             self._refresh_var_tree()
-            self._check_paths()
 
     def _save_src_to_file(self):
         if not self._current_script: return
@@ -1277,7 +1412,6 @@ class SMKRunApp(QMainWindow):
             self._btn_cancel_src.setEnabled(False)
             
             self._load_script(self._current_script) # Re-load everything
-            self._check_paths() # Auto check paths logic
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to save file: {e}")
 
@@ -1294,6 +1428,8 @@ class SMKRunApp(QMainWindow):
         self._src_text.setReadOnly(True)
         self._src_text.setStyleSheet(f"background-color: {PALETTE['panel']};")
         self._btn_edit_src.setText("Edit Script")
+        self._btn_save_src.setEnabled(False)
+        self._btn_reset_src.setEnabled(False)
         self._btn_cancel_src.setEnabled(False)
         
         # Revert to last applied state or original
@@ -1334,7 +1470,7 @@ class SMKRunApp(QMainWindow):
         self._lbl_run_status.setText("[*]  Running...")
         self._lbl_run_status.setStyleSheet(f"color: {PALETTE['warn']};")
         self._status_var.setText(f"Running: {name}")
-        self._notebook.setCurrentIndex(2)
+        self._notebook.setCurrentIndex(self._tab_index("  Run Log  "))
 
         script_dir = os.path.dirname(self._current_script)
         run_file = self._current_script
@@ -1466,6 +1602,18 @@ class SMKRunApp(QMainWindow):
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(self._log_text.toPlainText())
             QMessageBox.information(self, "Saved", f"Log saved to:\n{path}")
+
+    def _get_log_program_order(self) -> list:
+        """Return a deduplicated list of SMOKE program names in the order they first
+        appeared in the Run Log, as identified by 'Program X, Version' markers."""
+        text = self._log_text.toPlainText()
+        seen, seen_set = [], set()
+        for m in re.finditer(r"Program\s+([A-Z0-9_]+)[,\s]+Version", text, re.IGNORECASE):
+            prog = m.group(1).upper()
+            if prog not in seen_set:
+                seen.append(prog)
+                seen_set.add(prog)
+        return seen
 
     # ── Outputs ──
 
@@ -1649,6 +1797,24 @@ class SMKRunApp(QMainWindow):
         grouped = defaultdict(set)
         script_dir = os.path.dirname(self._current_script)
 
+        # 0. Direct env-var scan: collect input files from variable names.
+        # This ensures inputs appear in the tab even before a run produces any log.
+        for row in self._var_rows:
+            vname = row["var"].upper()
+            p = row["expanded"]
+            if not p or not os.path.isfile(p): continue
+            # (a) skip known SMKINVEN output variable names
+            if vname in SMKContext.SMKINVEN_OUTPUT_VARS: continue
+            # (b) skip if variable name contains an output-hint fragment
+            if any(x in vname for x in SMKContext.OUTPUT_HINTS): continue
+            # (c) skip if the resolved path lives inside a known output directory
+            p_low = p.lower()
+            if any(x in p_low for x in SMKContext.OUTPUT_PATH_HINTS): continue
+            # Now safe to classify as input
+            if any(x in vname for x in SMKContext.INPUT_BLACKLIST):
+                prog = SMKContext.sanitize_tool_name(vname)
+                grouped[prog].add(os.path.abspath(p))
+
         # 1. Start log discovery
         log_queue = deque()
         scanned_logs = set()
@@ -1690,7 +1856,7 @@ class SMKRunApp(QMainWindow):
                 for root, dirs, files in os.walk(r):
                     # Limit depth to avoid massive scans
                     depth = root[len(r):].count(os.sep)
-                    if depth > 4: 
+                    if depth > 2:
                         dirs[:] = [] # Stop recursion
                         continue
                     
@@ -1724,11 +1890,30 @@ class SMKRunApp(QMainWindow):
                             grouped[prog].add(path)
             except Exception: pass
 
+        # Remap every group key to a known SMOKE tool name.
+        # Keys that do not resolve to a tool in SMKContext.TOOLS fall under "General".
+        from collections import defaultdict as _dd
+        _tools = set(SMKContext.TOOLS)
+        _consolidated = _dd(set)
+        for _prog, _paths in grouped.items():
+            _canonical = _prog if _prog in _tools else SMKContext.sanitize_tool_name(_prog)
+            if _canonical not in _tools:
+                _canonical = "General"
+            _consolidated[_canonical].update(_paths)
+        grouped = _consolidated
+
+        # 3. Build the tree — programs ordered by execution appearance in the Run Log
+        exec_order = self._get_log_program_order()
+        _tools_progs = set(grouped.keys())
+        _ordered = [p for p in exec_order if p in _tools_progs]
+        _unordered = sorted(p for p in _tools_progs if p not in exec_order and p != "General")
+        _progs_sorted = _ordered + _unordered + (["General"] if "General" in _tools_progs else [])
+
         # 3. Build the tree
         self._input_file_tree.blockSignals(True)
         self._input_file_tree.clear()
-        
-        for prog in sorted(grouped.keys()):
+
+        for prog in _progs_sorted:
             if prog == "Utility/Log": continue # Don't show log files as data inputs
             fps = sorted(grouped[prog], key=lambda x: os.path.basename(x).lower())
             if not fps: continue
@@ -1761,8 +1946,7 @@ class SMKRunApp(QMainWindow):
         path = item.data(0, Qt.UserRole)
         if not path: return
         
-        from PyQt5.QtWidgets import QMenu
-        menu = QMenu()
+        menu = QMenu(self)
         view_action = menu.addAction("View Content")
         
         # Add Plot action if file type is supported by smkplot
@@ -1774,13 +1958,15 @@ class SMKRunApp(QMainWindow):
             
         copy_action = menu.addAction("Copy Path")
         
-        action = menu.exec_(self._input_file_tree.viewport().mapToGlobal(pos))
+        if QT_VERSION == 6:
+            action = menu.exec(self._input_file_tree.viewport().mapToGlobal(pos))
+        else:
+            action = menu.exec_(self._input_file_tree.viewport().mapToGlobal(pos))
         if action == view_action:
             self._show_file_viewer(path, os.path.basename(path))
         elif action == plot_action and plot_action:
             self._plot_emissions(path)
         elif action == copy_action:
-            from PyQt5.QtWidgets import QApplication
             QApplication.clipboard().setText(path)
 
     def _scan_outputs(self):
@@ -1792,16 +1978,15 @@ class SMKRunApp(QMainWindow):
         patterns = {".txt", ".rpt", ".csv", ".lst", ".ncf", ".nc", ".log"}
         script_dir = os.path.dirname(self._current_script)
 
-        # Filter: strictly only include if it looks like an output
-        output_var_hints = ["OUT", "REPOUT", "PLAY", "INLN", "LOG", "NCF", "PREMERGED", "MRG"]
-        input_var_blacklist = ["INPUT", "INV", "XREF", "MAP", "PROF", "FAC", "SRG", "GEO", "MET", "CONFIG", "DESC", "INC", "GRIDDESC", "SRGDESC", "SRGPRO", "TPRO", "GPRO", "BCON", "ICON", "DATES", "ROOT", "DIR"]
-
         for row in self._var_rows:
             vname = row["var"].upper()
-            if any(x in vname for x in SMKContext.INPUT_BLACKLIST): continue
-            
-            # Must look like an output or log
-            if not any(x in vname for x in SMKContext.OUTPUT_HINTS): continue
+            # SMKINVEN outputs (AREA, POINT, MOBILE, ASCIIDUMP, REPINVEN) bypass the
+            # INPUT_BLACKLIST because some of them contain blacklisted substrings (e.g. INV)
+            is_smkinven_out = vname in SMKContext.SMKINVEN_OUTPUT_VARS
+            if not is_smkinven_out:
+                if any(x in vname for x in SMKContext.INPUT_BLACKLIST): continue
+                if any(x in vname for x in SMKContext.PARAM_BLACKLIST): continue
+                if not any(x in vname for x in SMKContext.OUTPUT_HINTS): continue
 
             p = row["expanded"]
             if not p or len(p) < 4: continue 
@@ -1857,23 +2042,34 @@ class SMKRunApp(QMainWindow):
                         use_prog = prog if prog != "General" else context_prog
                         
                         # If we previously had this path in Global/Env or General, move it to the specific prog
-                        if path in grouped["Global/Env"]: grouped["Global/Env"].remove(path)
-                        if path in grouped["General"]: grouped["General"].remove(path)
+                        if path in grouped["Global/Env"]: grouped["Global/Env"].discard(path)
+                        if path in grouped["General"]: grouped["General"].discard(path)
                         
                         grouped[use_prog].add(path)
                         if path.endswith(".log"):
                             log_queue.append((path, use_prog))
             except: pass
 
+        # Consolidate: move every .log file into a dedicated "LOGS" group
+        for prog in list(grouped.keys()):
+            logs_in_prog = {p for p in grouped[prog] if p.endswith(".log")}
+            if logs_in_prog:
+                grouped[prog] -= logs_in_prog
+                grouped["LOGS"].update(logs_in_prog)
+
         self._file_tree.blockSignals(True)
         self._file_tree.clear()
         
-        # Sort programs by name, but Global/Env first
-        progs = sorted(grouped.keys())
-        if "Global/Env" in progs:
-            progs.remove("Global/Env")
-            progs = ["Global/Env"] + progs
-            
+        # Sort programs by log execution order; Global/Env first, General & LOGS last
+        exec_order = self._get_log_program_order()
+        _all_progs = set(grouped.keys())
+        _first = ["Global/Env"] if "Global/Env" in _all_progs else []
+        _last  = [p for p in ["General", "LOGS"] if p in _all_progs]
+        _middle_set = _all_progs - set(_first) - set(_last)
+        _ordered   = [p for p in exec_order if p in _middle_set]
+        _unordered = sorted(p for p in _middle_set if p not in exec_order)
+        progs = _first + _ordered + _unordered + _last
+
         for prog in progs:
             fps = sorted(grouped[prog], key=lambda x: os.path.basename(x).lower())
             if not fps: continue
@@ -1932,9 +2128,7 @@ class SMKRunApp(QMainWindow):
         if not item: return
         path = item.data(0, Qt.UserRole)
         if not path: return
-        
-        from PyQt5.QtWidgets import QMenu
-        menu = QMenu()
+        menu = QMenu(self)
         view_action = menu.addAction("View Content")
         
         # Add Plot action if file type is supported by smkplot
@@ -1946,13 +2140,15 @@ class SMKRunApp(QMainWindow):
             
         copy_action = menu.addAction("Copy Path")
         
-        action = menu.exec_(self._file_tree.viewport().mapToGlobal(pos))
+        if QT_VERSION == 6:
+            action = menu.exec(self._file_tree.viewport().mapToGlobal(pos))
+        else:
+            action = menu.exec_(self._file_tree.viewport().mapToGlobal(pos))
         if action == view_action:
             self._show_file_viewer(path, os.path.basename(path))
         elif action == plot_action and plot_action:
             self._plot_emissions(path)
         elif action == copy_action:
-            from PyQt5.QtWidgets import QApplication
             QApplication.clipboard().setText(path)
 
     def _plot_emissions(self, path):
@@ -1976,8 +2172,21 @@ class SMKRunApp(QMainWindow):
             return
             
         try:
+            ext = os.path.splitext(path)[1].lower()
+            if ext not in (".ncf", ".nc"):
+                cmd = [smkplot_exe, "--filepath", path, "--zoom-to-data"]
+            else:
+                cmd = [smkplot_exe, "--filepath", path]
+            if ext not in (".ncf", ".nc"):
+                env = getattr(self, "_env", {})
+                griddesc = env.get("GRIDDESC", "")
+                gridname = env.get("REGION_IOAPI_GRIDNAME", "")
+                if griddesc:
+                    cmd += ["--griddesc", griddesc]
+                if gridname:
+                    cmd += ["--gridname", gridname]
             # Run detached
-            subprocess.Popen([smkplot_exe, "--filepath", path])
+            subprocess.Popen(cmd)
             self._status_var.setText(f"Launching Plotter: {os.path.basename(path)}")
         except Exception as e:
             QMessageBox.critical(self, "Plot Error", f"Failed to launch smkplot:\n{str(e)}")
@@ -1995,13 +2204,20 @@ class SMKRunApp(QMainWindow):
             low = line.lower()
             ext_path = None
             
-            # Special detection: Error in another log file
+            # Special detection: Error in another log file OR Log Analyzer report
             if "error detected in logfile" in low and i < len(lines):
                 next_line = lines[i].strip().strip("* ").strip()
                 if os.path.exists(next_line) and os.path.isfile(next_line):
                     ext_path = next_line
+            elif "please review" in low and "report" in low:
+                # Look ahead for a rep_logs report path
+                for j in range(i, min(i + 3, len(lines))):
+                    candidate = lines[j].strip().strip("* ").strip()
+                    if ("rep_logs" in candidate or "/reports/log_analyzer/" in candidate) and os.path.isfile(candidate):
+                        ext_path = candidate
+                        break
             
-            if any(w in low for w in ["error", "abort", "fatal", "sigsegv"]): 
+            if any(w in low for w in ["error", "abort", "fatal", "sigsegv"]) or ext_path: 
                 errors.append({"line": i, "text": line.strip(), "ext_path": ext_path})
             elif any(w in low for w in ["warning", "warn"]): 
                 warnings.append({"line": i, "text": line.strip()})
@@ -2049,21 +2265,21 @@ class SMKRunApp(QMainWindow):
                 if err["ext_path"]: summary += f"       -> Linked: {os.path.basename(err['ext_path'])}\n"
 
         self._analysis_text.setPlainText(summary)
-        self._notebook.setCurrentIndex(5)
+        self._notebook.setCurrentIndex(self._tab_index("  Log Analysis  "))
 
     def _jump_to_log_line(self, item: QListWidgetItem):
         lineno = item.data(Qt.UserRole)
         ext_path = item.data(Qt.UserRole + 1)
         
         if ext_path and os.path.exists(ext_path):
-            reply = QMessageBox.question(self, "Open Reference Log?", 
-                                         f"This error references an external log file:\n\n{ext_path}\n\nWould you like to open it?",
+            reply = QMessageBox.question(self, "Open Reference File?", 
+                                         f"This entry references an external file:\n\n{ext_path}\n\nWould you like to open it?",
                                          QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 self._show_file_viewer(ext_path, os.path.basename(ext_path))
                 return
 
-        self._notebook.setCurrentIndex(2)
+        self._notebook.setCurrentIndex(self._tab_index("  Run Log  "))
         blk = self._log_text.document().findBlockByLineNumber(lineno - 1)
         cursor = self._log_text.textCursor()
         cursor.setPosition(blk.position())
