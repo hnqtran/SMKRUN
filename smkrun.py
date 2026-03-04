@@ -46,8 +46,8 @@ try:
                                  QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
                                  QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
                                  QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
-    from PySide6.QtCore import Qt, QTimer, Signal, QObject
-    from PySide6.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter
+    from PySide6.QtCore import Qt, QTimer, Signal, QObject, QRect
+    from PySide6.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter, QPainter, QPolygon
     QT_VERSION = 6
 except ImportError:
     from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -57,8 +57,8 @@ except ImportError:
                                  QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
                                  QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
                                  QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
-    from PyQt5.QtCore import Qt, QTimer, pyqtSignal as Signal, QObject
-    from PyQt5.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter
+    from PyQt5.QtCore import Qt, QTimer, pyqtSignal as Signal, QObject, QRect
+    from PyQt5.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter, QPainter, QPolygon
     QT_VERSION = 5
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -70,6 +70,7 @@ DIR_DEFS_CANDIDATES = [
     "directory_definitions_12US2.csh",
 ]
 SHELL = "/bin/tcsh"
+DEFAULT_SCRIPT_FILTER = "*.csh, *.tcsh"
 
 PALETTE = {
     "bg":        "#1a1d2e",
@@ -91,7 +92,8 @@ class SMKContext:
     TOOLS = [
         "SMKINVEN", "SPCMAT", "TEMPORAL", "GRDMAT", "ELEPOINT", "LAYPOINT",
         "SMKMERGE", "SMKREPORT", "CNTLMAT", "NORMBEIS", "TMPBEIS", "SMK2EMF",
-        "UAM2ROADS", "RAW2EA", "PRESMOK", "BELDTOT"
+        "UAM2ROADS", "RAW2EA", "PRESMOK", "BELDTOT", "MOVESMRG", "MOVESPRB",
+        "M3STAT", "M3XTRACT"
     ]
     
     # Variables that suggest a file is an INPUT (to be ignored in output scans)
@@ -104,7 +106,7 @@ class SMKContext:
     
     # Variables that strongly suggest a file is an OUTPUT or LOG
     OUTPUT_HINTS = ["OUT", "REPOUT", "PLAY", "INLN", "LOG", "NCF", "PREMERGED", "MRG",
-                    "AREA", "POINT", "MOBILE", "ASCIIDUMP"]
+                    "AREA", "POINT", "MOBILE", "ASCIIDUMP", "REPINVEN", "REPORT"]
 
     # SMKINVEN primary output variable names that may contain INPUT_BLACKLIST substrings
     # (e.g. REPINVEN contains "INV") — these bypass the blacklist gate in _scan_outputs
@@ -179,6 +181,11 @@ class SMKContext:
         "METDOT":   "LAYPOINT",   # alternate naming convention
         # ── CNTLMAT ──────────────────────────────
         "GCNTL":    "CNTLMAT",    # growth/control packet file
+        "MOVES":    "MOVESMRG",   # movesmrg inputs
+        "REP":      "SMKREPORT",  # smkreport inputs
+        "REPORT":   "SMKREPORT",  # smkreport inputs
+        "M3STAT":   "M3STAT",     # m3stat inputs
+        "M3XTRACT": "M3XTRACT",   # m3xtract inputs
     }
 
     @staticmethod
@@ -533,6 +540,51 @@ class DefinitionDialog(QDialog):
         btn_box.accepted.connect(self.accept)
         layout.addWidget(btn_box)
 
+class ColumnRuler(QWidget):
+    def __init__(self, editor, parent=None):
+        super().__init__(parent)
+        self.editor = editor
+        self.setFixedHeight(22)
+        # Inherit font from editor to ensure exact match
+        self.setFont(self.editor.font())
+        self.editor.horizontalScrollBar().valueChanged.connect(self.update)
+        self.editor.updateRequest.connect(self._handle_update)
+        
+    def _handle_update(self, rect, dy):
+        if dy == 0: self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(event.rect(), QColor(PALETTE['entry_bg']))
+        painter.setPen(QColor(PALETTE['fg2']))
+        
+        # Use editor's font metrics for perfect synchronization
+        fm = self.editor.fontMetrics()
+        char_width = fm.horizontalAdvance(' ') if QT_VERSION == 6 else fm.width(' ')
+        
+        offset = self.editor.horizontalScrollBar().value()
+        start_col = offset
+        
+        # Account for viewport margins and document margin
+        margin = self.editor.document().documentMargin()
+        content_offset = self.editor.contentOffset().x() + margin
+        
+        width = self.width()
+        max_cols = int(width / char_width) + 2
+        
+        painter.setFont(self.editor.font())
+        for col in range(start_col, start_col + max_cols + 1):
+            x = (col - start_col) * char_width + content_offset
+            
+            if col % 10 == 0:
+                painter.drawLine(int(x), 12, int(x), 22)
+                if col > 0:
+                    painter.drawText(int(x) - (fm.horizontalAdvance(str(col))//2 if QT_VERSION==6 else fm.width(str(col))//2), 10, str(col))
+            elif col % 5 == 0:
+                painter.drawLine(int(x), 17, int(x), 22)
+            else:
+                painter.drawLine(int(x), 20, int(x), 22)
+
 class FileViewerDialog(QDialog):
     def __init__(self, path, var_name, parent=None):
         super().__init__(parent)
@@ -547,9 +599,14 @@ class FileViewerDialog(QDialog):
         self.setStyleSheet(f"background-color: {PALETTE['bg']}; color: {PALETTE['fg']};")
         
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(0)
         
         # Toolbar
-        tbar = QHBoxLayout()
+        tbar_container = QWidget()
+        tbar = QHBoxLayout(tbar_container)
+        tbar.setContentsMargins(5, 5, 5, 5)
+        
         self.btn_edit = QPushButton("Edit File")
         self.btn_edit.clicked.connect(lambda: self._set_edit_mode(True))
         tbar.addWidget(self.btn_edit)
@@ -572,18 +629,29 @@ class FileViewerDialog(QDialog):
             tbar.addWidget(QLabel("<b>[Binary NetCDF Mode]</b> Read-only metadata visualization"))
         
         tbar.addStretch()
-        layout.addLayout(tbar)
+        layout.addWidget(tbar_container)
+
+        # Content Area (Text/NC View)
+        self.text = QPlainTextEdit()
+        # Set high-priority monospaced font for precision alignment
+        v_font = QFont("DejaVu Sans Mono", 10)
+        v_font.setStyleHint(QFont.Monospace)
+        self.text.setFont(v_font)
         
-        self.text = QTextEdit()
+        self.ruler = ColumnRuler(self.text)
+        layout.addWidget(self.ruler)
+        layout.addWidget(self.text)
+        if self.is_netcdf: self.ruler.hide()
+
+        # Shared Editor styling
         self.text.setReadOnly(True)
-        self.text.setFont(QFont("Courier New", 11))
-        self.text.setLineWrapMode(QTextEdit.NoWrap)
+        self.text.setLineWrapMode(QPlainTextEdit.NoWrap)
         self.text.setStyleSheet(f"""
-            QTextEdit {{
+            QPlainTextEdit {{
                 background-color: {PALETTE['panel']};
                 color: {PALETTE['fg']};
                 border: 1px solid {PALETTE['border']};
-                padding: 10px;
+                padding: 0px;
             }}
         """)
         
@@ -596,15 +664,38 @@ class FileViewerDialog(QDialog):
                     self.original_content = f.read(5*1024*1024) 
                     self.text.setPlainText(self.original_content)
                     if f.read(1):
-                        self.text.append("\n\n... [File truncated for performance] ...")
+                        self.text.appendPlainText("\n\n... [File truncated for performance] ...")
+                    
         except Exception as e:
-            self.text.setPlainText(f"[Error reading file: {path}\n\n{e}]")
-            
-        layout.addWidget(self.text)
+            if hasattr(self, 'text'):
+                self.text.setPlainText(f"[Error reading file: {path}\n\n{e}]")
         
+        # Status Bar
+        self.status_bar = QWidget()
+        self.status_bar.setFixedHeight(25)
+        self.status_bar.setStyleSheet(f"background-color: {PALETTE['panel']}; border-top: 1px solid {PALETTE['border']};")
+        sbox = QHBoxLayout(self.status_bar)
+        sbox.setContentsMargins(10, 0, 10, 0)
+        self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet("font-size: 9pt; font-weight: bold;")
+        sbox.addWidget(self.status_label)
+        sbox.addStretch()
+        layout.addWidget(self.status_bar)
+
         btn_box = QDialogButtonBox(QDialogButtonBox.Close)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
+        
+        # Connect signals only after all UI members are initialized
+        self.text.cursorPositionChanged.connect(self._update_status)
+        self._update_status()
+
+    def _update_status(self, *args):
+        cursor = self.text.textCursor()
+        line = cursor.blockNumber() + 1
+        col = cursor.columnNumber() + 1
+        self.status_label.setText(f"Line: {line}, Col: {col}")
+
 
     def _set_edit_mode(self, editing):
         self.text.setReadOnly(not editing)
@@ -653,6 +744,8 @@ class SMKRunApp(QMainWindow):
         self._var_rows: List[Dict] = []
         self._overrides: Dict[str, str] = {}
         self._script_override_content: Optional[str] = None
+        self._last_output_state = None  # Hash of grouping state to avoid redundant churn
+        self._last_input_state = None
         
         self.log_signal = LogSignal()
         self.log_signal.new_line.connect(self._append_log)
@@ -662,7 +755,7 @@ class SMKRunApp(QMainWindow):
         
         self._apply_theme()
         self._build_ui()
-        self._populate_script_tree(self._scripts_root)
+        self._filter_tree()
         
         if initial_script and os.path.exists(initial_script):
             # Use QTimer to ensure the UI is fully initialized before loading
@@ -860,7 +953,8 @@ class SMKRunApp(QMainWindow):
         left_layout.addWidget(lh)
         
         self._filter_edit = QLineEdit()
-        self._filter_edit.setPlaceholderText("Filter scripts...")
+        self._filter_edit.setPlaceholderText("Filter scripts (e.g. *.csh, *.py, mrg)")
+        self._filter_edit.setText(DEFAULT_SCRIPT_FILTER)
         self._filter_edit.textChanged.connect(self._filter_tree)
         left_layout.addWidget(self._filter_edit)
         
@@ -1106,12 +1200,12 @@ class SMKRunApp(QMainWindow):
         layout.addWidget(paned, 1)
         parent.addTab(w, "  Log Analysis  ")
 
-    def _populate_script_tree(self, root_dir: str):
+    def _populate_script_tree(self, root_dir: str, exts: Tuple[str, ...] = (".csh", ".tcsh")):
         self._tree.clear()
         if not os.path.isdir(root_dir): return
-        self._walk_dir(root_dir, self._tree.invisibleRootItem())
+        self._walk_dir(root_dir, self._tree.invisibleRootItem(), exts)
         
-    def _walk_dir(self, path: str, parent: QTreeWidgetItem):
+    def _walk_dir(self, path: str, parent: QTreeWidgetItem, exts: Tuple[str, ...]):
         try:
             entries = sorted(os.scandir(path), key=lambda e: (not e.is_dir(), e.name))
         except PermissionError: return
@@ -1120,8 +1214,8 @@ class SMKRunApp(QMainWindow):
             if entry.is_dir():
                 item = QTreeWidgetItem(parent, [f"[+] {entry.name}"])
                 item.setData(0, Qt.UserRole, entry.path)
-                self._walk_dir(entry.path, item)
-            elif entry.name.endswith((".csh", ".tcsh")):
+                self._walk_dir(entry.path, item, exts)
+            elif entry.name.lower().endswith(exts):
                 item = QTreeWidgetItem(parent, [f"    {entry.name}"])
                 item.setData(0, Qt.UserRole, entry.path)
 
@@ -1129,19 +1223,40 @@ class SMKRunApp(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Select Scripts Root Directory", self._scripts_root)
         if d:
             self._scripts_root = d
-            self._filter_edit.setText("")
-            self._populate_script_tree(self._scripts_root)
+            self._filter_edit.setText(DEFAULT_SCRIPT_FILTER)
+            self._filter_tree()
+
+    def _parse_filter(self, text: str) -> Tuple[Tuple[str, ...], List[str]]:
+        if not text.strip():
+            return (".csh", ".tcsh"), []
+        parts = [p.strip().lower() for p in text.split(",") if p.strip()]
+        exts = []
+        keywords = []
+        for p in parts:
+            if p == "*.*":
+                exts.append("")
+            elif p.startswith("*.") or (p.startswith(".") and len(p) > 1):
+                exts.append(p.replace("*", ""))
+            else:
+                keywords.append(p)
+        if not exts:
+            exts = [".csh", ".tcsh"]
+        return tuple(exts), keywords
 
     def _filter_tree(self):
-        q = self._filter_edit.text().lower()
-        if not q or q == "filter scripts...":
-            self._populate_script_tree(self._scripts_root)
+        text = self._filter_edit.text()
+        exts, keywords = self._parse_filter(text)
+        
+        if not keywords:
+            self._populate_script_tree(self._scripts_root, exts)
             return
+            
         self._tree.clear()
+        query = " ".join(keywords).lower()
         for root, dirs, files in os.walk(self._scripts_root):
             dirs[:] = sorted(d for d in dirs if not d.startswith("."))
             for f in sorted(files):
-                if q in f.lower() and f.endswith((".csh", ".tcsh")):
+                if query in f.lower() and f.lower().endswith(exts):
                     full = os.path.join(root, f)
                     rel = os.path.relpath(full, self._scripts_root)
                     it = QTreeWidgetItem(self._tree.invisibleRootItem(), [f"    {rel}"])
@@ -1585,7 +1700,8 @@ class SMKRunApp(QMainWindow):
     # Opportunistic scan: if we see a log path being created, trigger a re-scan of outputs
     def _handle_log_path(self, line):
         low = line.lower()
-        if ".log" in low:
+        # Scan if we see a log path OR I/O API output indicators
+        if ".log" in low or any(x in low for x in ["opened for output", "opened as unknown", "opened as new", "file name"]):
             now = time.time()
             if not hasattr(self, "_last_auto_scan") or (now - self._last_auto_scan > 2.0):
                 self._last_auto_scan = now
@@ -1617,6 +1733,44 @@ class SMKRunApp(QMainWindow):
 
     # ── Outputs ──
 
+    def _smart_isfile(self, path: str) -> Optional[str]:
+        """Check if path exists, or if it exists with common Smk extensions or .gz"""
+        if os.path.isfile(path): return os.path.abspath(path)
+        for ext in [".ncf", ".rpt", ".txt", ".nc", ".csv"]:
+            p = path + ext
+            if os.path.isfile(p): return os.path.abspath(p)
+            if os.path.isfile(p + ".gz"): return os.path.abspath(p + ".gz")
+        if os.path.isfile(path + ".gz"): return os.path.abspath(path + ".gz")
+        return None
+
+    def _identify_program_from_log_header(self, log_path: str, default_prog: str = None) -> str:
+        """Read the first bit of a log file to identify which SMOKE program generated it."""
+        if not log_path or not os.path.isfile(log_path):
+            return default_prog if default_prog else SMKContext.sanitize_tool_name(os.path.basename(log_path))
+        
+        try:
+            # Avoid huge files
+            if os.path.getsize(log_path) > 15 * 1024 * 1024:
+                return default_prog if default_prog else SMKContext.sanitize_tool_name(os.path.basename(log_path))
+                
+            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                # Headers are usually in the first 100 lines
+                for _ in range(150):
+                    line = f.readline()
+                    if not line: break
+                    m = re.search(r"Program\s+([A-Z0-9_]+)[,\s]+Version", line, re.IGNORECASE)
+                    if m:
+                        prog = m.group(1).upper()
+                        # If it's a known tool, great
+                        if prog in SMKContext.TOOLS: return prog
+                        # Otherwise if it looks like a program name (e.g. MOVESMRG)
+                        if len(prog) >= 5: return prog
+        except:
+            pass
+            
+        # Fallback to filename-based mapping
+        return default_prog if default_prog else SMKContext.sanitize_tool_name(os.path.basename(log_path))
+
     def _parse_log_for_files(self, text: str, base_dir: str) -> List[Tuple[str, str]]:
         found = [] # List of (path, program)
         lines = [l.strip() for l in text.splitlines()]
@@ -1626,7 +1780,7 @@ class SMKRunApp(QMainWindow):
         p_prog = re.compile(r"Program ([A-Z0-9_]+), Version", re.IGNORECASE)
         p_val_for = re.compile(r"Value for \S+:\s+'(.+?)'", re.IGNORECASE)
         p_file_name = re.compile(r"File name\s+\"(.+?)\"", re.IGNORECASE)
-        p_log_path = re.compile(r"((?:/|[./]+[a-zA-Z0-9_\-]+/)[a-zA-Z0-9_\-\./]+\.log)", re.IGNORECASE)
+        p_log_path = re.compile(r"([a-zA-Z0-9_\-\./\\]+\.log)", re.IGNORECASE)
 
         for i, line in enumerate(lines):
             low = line.lower()
@@ -1636,17 +1790,36 @@ class SMKRunApp(QMainWindow):
             if m_prog:
                 current_prog = m_prog.group(1).upper()
             elif "checking log file" in low or "processing log:" in low:
-                m_check = re.search(r"([a-z0-9_]+)\.log", low, re.IGNORECASE)
+                # We try to extract a path string from the line
+                m_check = re.search(r"([a-zA-Z0-9_\-\./\\]+\.log)", line, re.IGNORECASE)
                 if m_check:
-                    current_prog = SMKContext.sanitize_tool_name(m_check.group(1))
+                    log_p = m_check.group(1).strip("'\"")
+                    target = log_p if os.path.isabs(log_p) else os.path.normpath(os.path.join(base_dir, log_p))
+                    found_p = self._smart_isfile(target)
+                    if found_p:
+                        current_prog = self._identify_program_from_log_header(found_p)
+                    else:
+                        current_prog = SMKContext.sanitize_tool_name(os.path.basename(log_p))
+                else:
+                    # Fallback to simple name extraction if no path found
+                    m_simple = re.search(r"([a-z0-9_\-\.]+)\.log", low, re.IGNORECASE)
+                    if m_simple:
+                        fname = os.path.basename(m_simple.group(1))
+                        current_prog = SMKContext.sanitize_tool_name(fname)
 
             # Follow log files only for recursive tracking
             for m_path in p_log_path.finditer(line):
                 target = m_path.group(1)
                 if not os.path.isabs(target):
                     target = os.path.normpath(os.path.join(base_dir, target))
-                if os.path.isfile(target):
-                    found.append((os.path.abspath(target), current_prog))
+                found_p = self._smart_isfile(target)
+                if found_p:
+                    # Logs should always be grouped by their own header, not current context
+                    p_name = self._identify_program_from_log_header(found_p)
+                    found.append((found_p, p_name))
+                    # If this line implies we are starting to process this log, update context
+                    if any(x in low for x in ["checking", "processing", "processing log"]):
+                        current_prog = p_name
 
             # Skip lines that explicitly mention input operations
             if any(x in low for x in ["opened for input", "old:read-only", "opened as old", "input file"]):
@@ -1658,24 +1831,32 @@ class SMKRunApp(QMainWindow):
                 # Look ahead for a path string
                 for j in range(i + 1, min(i + 6, len(lines))):
                     candidate = lines[j].strip().strip("'\"")
+                    # Remove I/O API prefixes if present
+                    for prefix in ["File name", "File:", "Path:"]:
+                        if candidate.lower().startswith(prefix.lower()):
+                            candidate = candidate[len(prefix):].strip().strip("'\"")
+                    
                     if candidate and not any(x in candidate.lower() for x in ["returning", "value for", "program", "execution"]):
-                        # Check if it looks like a file path
-                        if candidate.startswith("/") or "." in candidate or "/" in candidate:
-                            target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                            if os.path.isfile(target):
-                                found.append((os.path.abspath(target), current_prog))
-                                break
+                        target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
+                        found_p = self._smart_isfile(target)
+                        if found_p:
+                            found.append((found_p, current_prog))
+                            break
 
             # Pattern 2: "File name ..." (Common for NetCDF or detailed logs)
             m_fn = p_file_name.search(line)
             if m_fn:
-                # Check preceding lines to Ensure it's not an input file
                 context_hint = " ".join([l.lower() for l in lines[max(0, i-2):i]])
                 if not any(x in context_hint for x in ["opened for input", "old:read-only", "opened as old"]):
                     path = m_fn.group(1).strip()
                     target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                    if os.path.isfile(target):
-                        found.append((os.path.abspath(target), current_prog))
+                    found_p = self._smart_isfile(target)
+                    if found_p:
+                        # If it's a log, use its header; otherwise use context
+                        p_name = current_prog
+                        if found_p.endswith(".log"):
+                            p_name = self._identify_program_from_log_header(found_p)
+                        found.append((found_p, p_name))
 
             # Pattern 3: "Value for VAR: 'PATH'" - Variable based discovery
             m_vf = p_val_for.search(line)
@@ -1683,24 +1864,26 @@ class SMKRunApp(QMainWindow):
                 var_match = re.search(r"Value for ([A-Z0-9_]+):", line, re.IGNORECASE)
                 if var_match:
                     vname = var_match.group(1).upper()
-                    if not any(x in vname for x in SMKContext.INPUT_BLACKLIST):
+                    if vname in SMKContext.SMKINVEN_OUTPUT_VARS or not any(x in vname for x in SMKContext.INPUT_BLACKLIST):
                         path = m_vf.group(1).strip()
                         target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                        if os.path.isfile(target):
+                        found_p = self._smart_isfile(target)
+                        if found_p:
                             # Filter using hints to avoid noise, but allow if it's in an intermed or reports dir
                             t_low = target.lower()
                             is_output_dir = any(x in t_low for x in ["/intermed", "/reports", "/outputs"])
                             if is_output_dir or any(x in vname for x in SMKContext.OUTPUT_HINTS):
                                 if not any(x in t_low for x in SMKContext.PATH_BLACKLIST):
-                                    found.append((os.path.abspath(target), current_prog))
+                                    found.append((found_p, current_prog))
 
             # Pattern 4: "WARNING: output file already exists: VAR" followed by path
             if "output file already exists" in low and (i + 1) < len(lines):
                  path = lines[i+1].strip().strip("'\"")
                  if path.startswith("/") or "." in path:
                      target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                     if os.path.isfile(target):
-                         found.append((os.path.abspath(target), current_prog))
+                     found_p = self._smart_isfile(target)
+                     if found_p:
+                         found.append((found_p, current_prog))
 
         return found
 
@@ -1710,20 +1893,22 @@ class SMKRunApp(QMainWindow):
         current_prog = default_prog
         p_prog = re.compile(r"Program ([A-Z0-9_]+), Version", re.IGNORECASE)
         p_file_name = re.compile(r"File name\s+\"(.+?)\"", re.IGNORECASE)
-        p_val_for = re.compile(r"Value for \S+:\s+'(.+?)'", re.IGNORECASE)
+        # We capture the variable name in group 1 to filter out outputs misidentified as inputs
+        p_val_for = re.compile(r"Value for (\S+):\s+'(.+?)'", re.IGNORECASE)
 
         for i, line in enumerate(lines):
             low = line.lower()
             
             # Unconditionally detect log files and update program context
             # We look for explicit "checking log file" or any absolute path ending in .log
-            m_log = re.search(r"((?:/|[./]+[a-zA-Z0-9_\-]+/)[A-Za-z0-9_\-\./]+\.log)", line, re.IGNORECASE)
+            m_log = re.search(r"([a-zA-Z0-9_\-\./\\]+\.log)", line, re.IGNORECASE)
             if m_log:
                 log_p = m_log.group(1).strip("'\"")
                 target = log_p if os.path.isabs(log_p) else os.path.normpath(os.path.join(base_dir, log_p))
-                if os.path.isfile(target):
-                    prog_name = SMKContext.sanitize_tool_name(os.path.basename(log_p))
-                    found.append((os.path.abspath(target), prog_name))
+                found_p = self._smart_isfile(target)
+                if found_p:
+                    prog_name = self._identify_program_from_log_header(found_p)
+                    found.append((found_p, prog_name))
                     # If this line implies we are about to check this log, update context
                     if "checking" in low or "processing" in low:
                         current_prog = prog_name
@@ -1740,7 +1925,8 @@ class SMKRunApp(QMainWindow):
                 if m_same:
                     candidate = m_same.group(1).strip("'\"")
                     target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                    if os.path.isfile(target): found.append((os.path.abspath(target), current_prog))
+                    found_p = self._smart_isfile(target)
+                    if found_p: found.append((found_p, current_prog))
                 
                 # Then, Search ahead for the path (standard SMOKE behavior)
                 for j in range(i + 1, min(i + 6, len(lines))):
@@ -1751,8 +1937,9 @@ class SMKRunApp(QMainWindow):
                         # Check if it looks like a path (allow uppercase)
                         if candidate.startswith("/") or (("/" in candidate or "." in candidate) and len(candidate) > 4):
                             target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                            if os.path.isfile(target):
-                                found.append((os.path.abspath(target), current_prog))
+                            found_p = self._smart_isfile(target)
+                            if found_p:
+                                found.append((found_p, current_prog))
                                 break
 
             # Pattern: Successful OPEN (Alternative SMOKE format)
@@ -1765,29 +1952,36 @@ class SMKRunApp(QMainWindow):
                  
                  if path:
                      target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                     if os.path.isfile(target): found.append((os.path.abspath(target), current_prog))
+                     found_p = self._smart_isfile(target)
+                     if found_p: found.append((found_p, current_prog))
 
             # Pattern: File name (often used in netCDF open messages)
             m_fn = p_file_name.search(line)
             if m_fn:
-                # To avoid capturing output files as inputs, check if recent context implies an input open
-                # In many SMOKE logs, "File name" is used for both. We'll check the preceding lines.
                 context_hint = " ".join([l.lower() for l in lines[max(0, i-2):i]])
                 if any(x in context_hint for x in ["opened for input", "opened as old", "old:read-only", "checking"]):
                     path = m_fn.group(1).strip()
                     target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                    if os.path.isfile(target): found.append((os.path.abspath(target), current_prog))
+                    found_p = self._smart_isfile(target)
+                    if found_p: found.append((found_p, current_prog))
 
             # Pattern: Value for (captures variables that are files)
             m_vf = p_val_for.search(line)
             if m_vf:
-                candidate = m_vf.group(1).strip()
-                if "/" in candidate or "." in candidate:
-                    target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                    if os.path.isfile(target):
-                        # Filter out common output-looking variables if needed, 
-                        # but usually logs only print "Value for" for inputs.
-                        found.append((os.path.abspath(target), current_prog))
+                vname = m_vf.group(1).upper()
+                candidate = m_vf.group(2).strip()
+                
+                # Filter: If the variable name or path implies this is an OUTPUT, skip it in the input scan.
+                is_output_var = any(x in vname for x in SMKContext.OUTPUT_HINTS)
+                t_low = candidate.lower()
+                is_output_path = any(x in t_low for x in SMKContext.OUTPUT_PATH_HINTS)
+                
+                if not (is_output_var or is_output_path):
+                    if "/" in candidate or "." in candidate:
+                        target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
+                        found_p = self._smart_isfile(target)
+                        if found_p:
+                            found.append((found_p, current_prog))
 
         return found
 
@@ -1797,29 +1991,11 @@ class SMKRunApp(QMainWindow):
         grouped = defaultdict(set)
         script_dir = os.path.dirname(self._current_script)
 
-        # 0. Direct env-var scan: collect input files from variable names.
-        # This ensures inputs appear in the tab even before a run produces any log.
-        for row in self._var_rows:
-            vname = row["var"].upper()
-            p = row["expanded"]
-            if not p or not os.path.isfile(p): continue
-            # (a) skip known SMKINVEN output variable names
-            if vname in SMKContext.SMKINVEN_OUTPUT_VARS: continue
-            # (b) skip if variable name contains an output-hint fragment
-            if any(x in vname for x in SMKContext.OUTPUT_HINTS): continue
-            # (c) skip if the resolved path lives inside a known output directory
-            p_low = p.lower()
-            if any(x in p_low for x in SMKContext.OUTPUT_PATH_HINTS): continue
-            # Now safe to classify as input
-            if any(x in vname for x in SMKContext.INPUT_BLACKLIST):
-                prog = SMKContext.sanitize_tool_name(vname)
-                grouped[prog].add(os.path.abspath(p))
-
         # 1. Start log discovery
         log_queue = deque()
         scanned_logs = set()
         
-        # A. Add main log content from the UI (it might contain paths to other logs or direct inputs)
+        # Add main log content from the UI (the primary source of file discovery)
         main_log = self._log_text.toPlainText()
         if main_log:
             for path, prog in self._parse_log_for_inputs(main_log, script_dir):
@@ -1827,45 +2003,6 @@ class SMKRunApp(QMainWindow):
                     log_queue.append((path, prog))
                 else:
                     grouped[prog].add(path)
-
-        # B. Add any log files found in variables
-        log_hints = ["LOG", "OUTLOG", "S_LOG", "LOGFILE", "SUM", "REP", "M_LOG", "I_LOG", "T_LOG", "INLOG"]
-        possible_roots = {script_dir}
-        
-        for row in self._var_rows:
-            vname = row["var"].upper()
-            p = row["expanded"]
-            if not p: continue
-            
-            # Directory variables: catch anything that looks like a path
-            if os.path.isdir(p):
-                possible_roots.add(p)
-                # If it's a root variable, maybe its parent is also interesting
-                parent = os.path.dirname(p)
-                if len(parent) > 5: possible_roots.add(parent)
-
-            if (p.endswith(".log") or any(h in vname for h in log_hints)) and os.path.isfile(p):
-                prog = SMKContext.sanitize_tool_name(os.path.basename(p))
-                log_queue.append((p, prog))
-
-        # C. Proactively search for logs in all discovered roots
-        # We'll do a shallow recursive search (depth 2) to find all .log files
-        for r in list(possible_roots):
-            if not os.path.isdir(r): continue
-            try:
-                for root, dirs, files in os.walk(r):
-                    # Limit depth to avoid massive scans
-                    depth = root[len(r):].count(os.sep)
-                    if depth > 2:
-                        dirs[:] = [] # Stop recursion
-                        continue
-                    
-                    for f in files:
-                        if f.endswith(".log"):
-                            lp = os.path.join(root, f)
-                            p_name = SMKContext.sanitize_tool_name(f)
-                            log_queue.append((lp, p_name))
-            except: pass
 
         # 2. Iterative scan of the discovered logs
         max_scans = 50 
@@ -1887,13 +2024,15 @@ class SMKRunApp(QMainWindow):
                         if path.endswith(".log"):
                             log_queue.append((path, prog))
                         else:
+                            if prog != "General" and prog != "Global/Env":
+                                grouped["Global/Env"].discard(path)
+                                grouped["General"].discard(path)
                             grouped[prog].add(path)
             except Exception: pass
 
-        # Remap every group key to a known SMOKE tool name.
-        # Keys that do not resolve to a tool in SMKContext.TOOLS fall under "General".
+        # 2.5 Consolidate groups: Map orphan keys (variables) into known tools or General
         from collections import defaultdict as _dd
-        _tools = set(SMKContext.TOOLS)
+        _tools = set(SMKContext.TOOLS) | {"Global/Env", "General"}
         _consolidated = _dd(set)
         for _prog, _paths in grouped.items():
             _canonical = _prog if _prog in _tools else SMKContext.sanitize_tool_name(_prog)
@@ -1902,16 +2041,37 @@ class SMKRunApp(QMainWindow):
             _consolidated[_canonical].update(_paths)
         grouped = _consolidated
 
-        # 3. Build the tree — programs ordered by execution appearance in the Run Log
-        exec_order = self._get_log_program_order()
-        _tools_progs = set(grouped.keys())
-        _ordered = [p for p in exec_order if p in _tools_progs]
-        _unordered = sorted(p for p in _tools_progs if p not in exec_order and p != "General")
-        _progs_sorted = _ordered + _unordered + (["General"] if "General" in _tools_progs else [])
+        # 2.6 Cache check: only rebuild if set of paths OR their grouping has changed
+        current_state = hash(frozenset((p, frozenset(ps)) for p, ps in grouped.items()))
+        if current_state == getattr(self, "_last_input_state", None):
+            return
+        self._last_input_state = current_state
+
+        # 2.6 Save UI state
+        selected_path = None
+        sel_items = self._input_file_tree.selectedItems()
+        if sel_items:
+            selected_path = sel_items[0].data(0, Qt.UserRole)
+
+        expanded_progs = set()
+        for i in range(self._input_file_tree.topLevelItemCount()):
+            item = self._input_file_tree.topLevelItem(i)
+            if item.isExpanded():
+                expanded_progs.add(item.text(0).strip())
+        scroll_pos = self._input_file_tree.verticalScrollBar().value()
 
         # 3. Build the tree
         self._input_file_tree.blockSignals(True)
         self._input_file_tree.clear()
+        
+        # Sort programs by execution appearance, Global/Env first, General last
+        exec_order = self._get_log_program_order()
+        _tools_progs = set(grouped.keys())
+        
+        _first = ["Global/Env"] if "Global/Env" in _tools_progs else []
+        _ordered = [p for p in exec_order if p in _tools_progs and p not in _first]
+        _unordered = sorted(p for p in _tools_progs if p not in exec_order and p not in _first and p != "General")
+        _progs_sorted = _first + _ordered + _unordered + (["General"] if "General" in _tools_progs else [])
 
         for prog in _progs_sorted:
             if prog == "Utility/Log": continue # Don't show log files as data inputs
@@ -1932,9 +2092,16 @@ class SMKRunApp(QMainWindow):
                 if ext in [".ncf", ".nc"]: it.setForeground(0, QBrush(QColor(PALETTE["success"])))
                 elif ext in [".txt", ".rpt", ".csv", ".lst"]: it.setForeground(0, QBrush(QColor(PALETTE["warn"])))
                 elif ext == ".log": it.setForeground(0, QBrush(QColor(PALETTE["fg2"])))
+                
+                if p == selected_path:
+                    it.setSelected(True)
+                    self._input_file_tree.setCurrentItem(it)
 
-            prog_item.setExpanded(True)
+            if prog.strip() in expanded_progs or not expanded_progs:
+                prog_item.setExpanded(True)
+                
         self._input_file_tree.blockSignals(False)
+        self._input_file_tree.verticalScrollBar().setValue(scroll_pos)
 
     def _handle_input_tree_selection(self, item, column):
         path = item.data(0, Qt.UserRole)
@@ -1974,47 +2141,22 @@ class SMKRunApp(QMainWindow):
         
         from collections import defaultdict, deque
         grouped = defaultdict(set)
-        
         patterns = {".txt", ".rpt", ".csv", ".lst", ".ncf", ".nc", ".log"}
         script_dir = os.path.dirname(self._current_script)
-
-        for row in self._var_rows:
-            vname = row["var"].upper()
-            # SMKINVEN outputs (AREA, POINT, MOBILE, ASCIIDUMP, REPINVEN) bypass the
-            # INPUT_BLACKLIST because some of them contain blacklisted substrings (e.g. INV)
-            is_smkinven_out = vname in SMKContext.SMKINVEN_OUTPUT_VARS
-            if not is_smkinven_out:
-                if any(x in vname for x in SMKContext.INPUT_BLACKLIST): continue
-                if any(x in vname for x in SMKContext.PARAM_BLACKLIST): continue
-                if not any(x in vname for x in SMKContext.OUTPUT_HINTS): continue
-
-            p = row["expanded"]
-            if not p or len(p) < 4: continue 
-            if os.path.isfile(p):
-                # Path-based check: ignore script and staging dirs
-                p_low = p.lower()
-                if any(x in p_low for x in SMKContext.PATH_BLACKLIST):
-                    continue
-                    
-                ext = os.path.splitext(p)[1].lower()
-                if ext in patterns:
-                    grouped["Global/Env"].add(os.path.abspath(p))
-
-        # 2. Iterative scan of logs (BFS approach)
         log_queue = deque()
         
-        # Start with the main run log
+        # Start with the main run log (the primary source of file discovery)
         log_content = self._log_text.toPlainText()
         if log_content:
             for path, prog in self._parse_log_for_files(log_content, script_dir):
+                if prog != "General" and prog != "Global/Env":
+                    grouped["Global/Env"].discard(path)
+                    grouped["General"].discard(path)
                 grouped[prog].add(path)
                 if path.endswith(".log"):
-                    log_queue.append((path, prog))
-
-        # Add any logs found in Env vars to the scan queue
-        for p in list(grouped["Global/Env"]):
-            if p.endswith(".log"):
-                log_queue.append((p, "General"))
+                    # Use header-based IDs for recursive scans
+                    p_name = self._identify_program_from_log_header(path, default_prog=prog)
+                    log_queue.append((path, p_name))
 
         scanned_logs = set()
         max_scans = 50 # Safeguard against deep circularities
@@ -2041,21 +2183,34 @@ class SMKRunApp(QMainWindow):
                     for path, prog in self._parse_log_for_files(content, base):
                         use_prog = prog if prog != "General" else context_prog
                         
-                        # If we previously had this path in Global/Env or General, move it to the specific prog
-                        if path in grouped["Global/Env"]: grouped["Global/Env"].discard(path)
-                        if path in grouped["General"]: grouped["General"].discard(path)
+                        # Always prioritize specific program groupings; remove from generic groups
+                        if use_prog != "General" and use_prog != "Global/Env":
+                            grouped["Global/Env"].discard(path)
+                            grouped["General"].discard(path)
                         
                         grouped[use_prog].add(path)
                         if path.endswith(".log"):
                             log_queue.append((path, use_prog))
             except: pass
 
-        # Consolidate: move every .log file into a dedicated "LOGS" group
-        for prog in list(grouped.keys()):
-            logs_in_prog = {p for p in grouped[prog] if p.endswith(".log")}
-            if logs_in_prog:
-                grouped[prog] -= logs_in_prog
-                grouped["LOGS"].update(logs_in_prog)
+        # 0. Cache check: only rebuild if set of paths OR their grouping has changed
+        current_state = hash(frozenset((p, frozenset(ps)) for p, ps in grouped.items()))
+        if current_state == getattr(self, "_last_output_state", None):
+            return
+        self._last_output_state = current_state
+
+        # 1. Save UI state (Expansion, Scroll, and Selection)
+        selected_path = None
+        sel_items = self._file_tree.selectedItems()
+        if sel_items:
+            selected_path = sel_items[0].data(0, Qt.UserRole)
+
+        expanded_progs = set()
+        for i in range(self._file_tree.topLevelItemCount()):
+            item = self._file_tree.topLevelItem(i)
+            if item.isExpanded():
+                expanded_progs.add(item.text(0).strip())
+        scroll_pos = self._file_tree.verticalScrollBar().value()
 
         self._file_tree.blockSignals(True)
         self._file_tree.clear()
@@ -2109,14 +2264,21 @@ class SMKRunApp(QMainWindow):
                 it.setForeground(1, QBrush(QColor(PALETTE["fg2"])))
                 it.setFont(1, QFont("Courier New", 8))
                 
+                if p == selected_path:
+                    it.setSelected(True)
+                    self._file_tree.setCurrentItem(it)
+                
                 ext = os.path.splitext(p)[1].lower()
                 if ext in [".ncf", ".nc"]: it.setForeground(0, QBrush(QColor(PALETTE["success"])))
                 elif ext in [".txt", ".rpt"]: it.setForeground(0, QBrush(QColor(PALETTE["warn"])))
                 elif ext == ".log": it.setForeground(0, QBrush(QColor(PALETTE["fg2"])))
             
-            prog_item.setExpanded(True)
+            # Restore expansion state
+            if prog.strip() in expanded_progs or not expanded_progs:
+                prog_item.setExpanded(True)
             
         self._file_tree.blockSignals(False)
+        self._file_tree.verticalScrollBar().setValue(scroll_pos)
 
     def _handle_tree_selection(self, item, column):
         path = item.data(0, Qt.UserRole)
@@ -2217,8 +2379,11 @@ class SMKRunApp(QMainWindow):
                         ext_path = candidate
                         break
             
-            if any(w in low for w in ["error", "abort", "fatal", "sigsegv"]) or ext_path: 
-                errors.append({"line": i, "text": line.strip(), "ext_path": ext_path})
+            if any(w in low for w in ["error", "abort", "fatal", "sigsegv"]) or ext_path:
+                text = line.strip()
+                if ext_path:
+                    text += f" -> {ext_path}"
+                errors.append({"line": i, "text": text, "ext_path": ext_path})
             elif any(w in low for w in ["warning", "warn"]): 
                 warnings.append({"line": i, "text": line.strip()})
 
@@ -2262,7 +2427,7 @@ class SMKRunApp(QMainWindow):
             summary += f"\n  First 5 errors:\n"
             for err in errors[:5]: 
                 summary += f"    [L{err['line']}] {err['text'][:80]}\n"
-                if err["ext_path"]: summary += f"       -> Linked: {os.path.basename(err['ext_path'])}\n"
+                if err["ext_path"]: summary += f"       -> Path: {err['ext_path']}\n"
 
         self._analysis_text.setPlainText(summary)
         self._notebook.setCurrentIndex(self._tab_index("  Log Analysis  "))

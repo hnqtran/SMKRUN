@@ -2,11 +2,19 @@ EMISINV_A1: Path to raw emissions inventory CSV file (A1), picked up by combine_
   to build the SMOKE processing list file.
 GSPROTMP_D1: Fragment or case-specific speciation profile file (D1), merged by combine_data
   to create the comprehensive GSPRO.
+GSPROTMP_X5: 'Placeholder: Write documentation for this variable here.'
 GSREFTMP_F: Fragment or case-specific speciation cross-reference file (F), merged
   by combine_data to create the comprehensive GSREF.
+GSREFTMP_R: 'Placeholder: Write documentation for this variable here.'
 GSREFTMP_X4: Fragment or case-specific speciation cross-reference file (X4), merged
   by combine_data to create the comprehensive GSREF.
+KEEP_RFL_SEPARATE: 'Placeholder: Write documentation for this variable here.'
+MOVESMRG_CUSTOM_OUTPUT: 'Placeholder: Write documentation for this variable here.'
+NAICSDESC: 'Placeholder: Write documentation for this variable here.'
+PLATFORM: 'Placeholder: Write documentation for this variable here.'
 RUN_MONTHS: Whitespace-separated list of integer month numbers to include in the current
   modeling run (e.g., '1 2 3 12').
 SRGPRO: Filepath to the gridding surrogate profile file, mapping spatial surrogates
   to grid cells.
+SUBOUT02_NAME: 'Placeholder: Write documentation for this variable here.'
+USE_LINUX2: 'Placeholder: Write documentation for this variable here.'
