@@ -746,6 +746,7 @@ class SMKRunApp(QMainWindow):
         self._script_override_content: Optional[str] = None
         self._last_output_state = None  # Hash of grouping state to avoid redundant churn
         self._last_input_state = None
+        self._last_exit_code = None  # Store exit code for use in Log Analysis
         
         self.log_signal = LogSignal()
         self.log_signal.new_line.connect(self._append_log)
@@ -1643,6 +1644,7 @@ class SMKRunApp(QMainWindow):
     def _run_done(self, rc):
         self._running = False
         self._proc = None
+        self._last_exit_code = rc  # Store exit code for Log Analysis
         self._btn_run.setEnabled(True)
         self._btn_stop.setEnabled(False)
         if rc == 0:
@@ -2387,7 +2389,7 @@ class SMKRunApp(QMainWindow):
             elif any(w in low for w in ["warning", "warn"]): 
                 warnings.append({"line": i, "text": line.strip()})
 
-        completed = any("normal completion" in l.lower() for l in lines)
+        completed = (self._last_exit_code == 0) if self._last_exit_code is not None else False
         smoke_progs = [l.strip() for l in lines if re.search(r"\b(smkinven|spcmat|temporal|laypoint|elevpoint|smkmerge|smkreport)\b", l, re.IGNORECASE)]
 
         self._issues_list.clear()
