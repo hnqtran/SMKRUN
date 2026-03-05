@@ -1590,9 +1590,11 @@ class SMKRunApp(QMainWindow):
 
         script_dir = os.path.dirname(self._current_script)
         run_file = self._current_script
+        is_temp = False
         
         if self._overrides or self._script_override_content:
             fd, tmp_script = tempfile.mkstemp(suffix=".csh", prefix="smkrun_override_", dir=script_dir)
+            is_temp = True
             if self._script_override_content:
                 lines = self._script_override_content.splitlines(True)
             else:
@@ -1635,7 +1637,7 @@ class SMKRunApp(QMainWindow):
                 self.log_signal.new_line.emit(f"\n[smkrun error] {exc}\n")
                 self.log_signal.done.emit(-1)
             finally:
-                if run_file != self._current_script and os.path.exists(run_file):
+                if is_temp and os.path.exists(run_file):
                     try: os.remove(run_file)
                     except Exception: pass
 
