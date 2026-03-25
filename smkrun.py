@@ -252,12 +252,15 @@ def recursive_expand(val: str, env: Dict[str, str], depth: int = 20) -> str:
         hits = _VAR_PAT.findall(result)
         if not hits: break
         orig = result
-        for v in set(hits):
+        # Sort hits by length descending to prevent partial matching (e.g., $VAR replacing inside $VAR_1)
+        # We also use regex word boundaries for the short-form substitution.
+        for v in sorted(list(set(hits)), key=len, reverse=True):
             if v in env and env[v] is not None:
-                # Literal replacement for safety
-                target_long = f"${{{v}}}"
-                target_short = f"${v}"
-                result = result.replace(target_long, env[v]).replace(target_short, env[v])
+                val_to_insert = str(env[v])
+                # Handle long-form ${VAR}
+                result = result.replace(f"${{{v}}}", val_to_insert)
+                # Handle short-form $VAR with word boundary protection
+                result = re.sub(rf"\${v}\b", val_to_insert, result)
         if result == orig: break
     return result
 
@@ -1605,12 +1608,40 @@ class SMKRunApp(QMainWindow):
             p_set = re.compile(r"^(\s*set\s+)([A-Za-z0-9_]+)(\s*=.*)$")
             
             with os.fdopen(fd, "w", encoding="utf-8") as f:
+                # 1. Write the Shebang
+                if lines and lines[0].startswith("#!"):
+                    f.write(lines[0])
+                    lines = lines[1:]
+                else:
+                    f.write(f"#!{SHELL}\n")
+                
+                # 2. Inject SMKRUN Overrides at the top of the script
+                f.write("\n# ── SMKRUN AUTOMATED OVERRIDES ──────────────────\n")
+                for v, val in self._overrides.items():
+                    # Identify the "kind" from our parsed rows to use the correct tcsh command
+                    r_info = next((r for r in self._var_rows if r["var"] == v), None)
+                    kind = r_info["kind"] if r_info else "setenv"
+                    
+                    if kind == "setenv":
+                        f.write(f"setenv {v} \"{val}\"   # Override\n")
+                        # Also sync to os.environ for the Popen itself
+                        env[v] = val
+                    else:
+                        f.write(f"set {v} = \"{val}\"    # Override\n")
+                f.write("# ────────────────────────────────────────────────\n\n")
+
+                # 3. Write the rest of the script, commenting out original lines that we've overridden
+                overridden_keys = set(self._overrides.keys())
                 for line in lines:
+                    stripped = line.strip()
                     m_env = p_env.match(line)
                     m_set = p_set.match(line)
-                    if m_env and m_env.group(2) in self._overrides:
-                        f.write(f"# smkrun override: {line}")
-                    elif m_set and m_set.group(2) in self._overrides:
+                    
+                    is_overridden = False
+                    if m_env and m_env.group(2) in overridden_keys: is_overridden = True
+                    elif m_set and m_set.group(2) in overridden_keys: is_overridden = True
+                    
+                    if is_overridden:
                         f.write(f"# smkrun override: {line}")
                     else:
                         f.write(line)
@@ -1700,7 +1731,6 @@ class SMKRunApp(QMainWindow):
         self._handle_log_path(line)
             
 
-
     # Opportunistic scan: if we see a log path being created, trigger a re-scan of outputs
     def _handle_log_path(self, line):
         low = line.lower()
@@ -1775,136 +1805,29 @@ class SMKRunApp(QMainWindow):
         # Fallback to filename-based mapping
         return default_prog if default_prog else SMKContext.sanitize_tool_name(os.path.basename(log_path))
 
-    def _parse_log_for_files(self, text: str, base_dir: str) -> List[Tuple[str, str]]:
-        found = [] # List of (path, program)
+    def _extract_paths_from_log(self, text: str, base_dir: str, mode: str = "output") -> List[Tuple[str, str]]:
+        """
+        Unified log parser for discovering files in SMOKE/IOAPI logs.
+        mode: 'output' or 'input'
+        Returns: List of (absolute_path, program_name)
+        """
+        found = []
         lines = [l.strip() for l in text.splitlines()]
-        
         current_prog = "General"
         
         p_prog = re.compile(r"Program ([A-Z0-9_]+), Version", re.IGNORECASE)
-        p_val_for = re.compile(r"Value for \S+:\s+'(.+?)'", re.IGNORECASE)
+        p_val_for = re.compile(r"Value for (\S+):\s+'(.+?)'", re.IGNORECASE)
         p_file_name = re.compile(r"File name\s+\"(.+?)\"", re.IGNORECASE)
-        p_log_path = re.compile(r"([a-zA-Z0-9_\-\./\\]+\.log)", re.IGNORECASE)
-
+        
         for i, line in enumerate(lines):
             low = line.lower()
             
-            # Identify current SMOKE program context
+            # 1. Update Program Context
             m_prog = p_prog.search(line)
             if m_prog:
                 current_prog = m_prog.group(1).upper()
-            elif "checking log file" in low or "processing log:" in low:
-                # We try to extract a path string from the line
-                m_check = re.search(r"([a-zA-Z0-9_\-\./\\]+\.log)", line, re.IGNORECASE)
-                if m_check:
-                    log_p = m_check.group(1).strip("'\"")
-                    target = log_p if os.path.isabs(log_p) else os.path.normpath(os.path.join(base_dir, log_p))
-                    found_p = self._smart_isfile(target)
-                    if found_p:
-                        current_prog = self._identify_program_from_log_header(found_p)
-                    else:
-                        current_prog = SMKContext.sanitize_tool_name(os.path.basename(log_p))
-                else:
-                    # Fallback to simple name extraction if no path found
-                    m_simple = re.search(r"([a-z0-9_\-\.]+)\.log", low, re.IGNORECASE)
-                    if m_simple:
-                        fname = os.path.basename(m_simple.group(1))
-                        current_prog = SMKContext.sanitize_tool_name(fname)
-
-            # Follow log files only for recursive tracking
-            for m_path in p_log_path.finditer(line):
-                target = m_path.group(1)
-                if not os.path.isabs(target):
-                    target = os.path.normpath(os.path.join(base_dir, target))
-                found_p = self._smart_isfile(target)
-                if found_p:
-                    # Logs should always be grouped by their own header, not current context
-                    p_name = self._identify_program_from_log_header(found_p)
-                    found.append((found_p, p_name))
-                    # If this line implies we are starting to process this log, update context
-                    if any(x in low for x in ["checking", "processing", "processing log"]):
-                        current_prog = p_name
-
-            # Skip lines that explicitly mention input operations
-            if any(x in low for x in ["opened for input", "old:read-only", "opened as old", "input file"]):
-                continue
-
-            # Pattern 1: SMOKE "File ... opened for output/UNKNOWN/NEW/WRITE on unit"
-            # Support multi-line path discovery (path might be 1-5 lines later)
-            if any(x in low for x in ["opened for output", "opened as unknown", "opened for write", "opened as new"]):
-                # Look ahead for a path string
-                for j in range(i + 1, min(i + 6, len(lines))):
-                    candidate = lines[j].strip().strip("'\"")
-                    # Remove I/O API prefixes if present
-                    for prefix in ["File name", "File:", "Path:"]:
-                        if candidate.lower().startswith(prefix.lower()):
-                            candidate = candidate[len(prefix):].strip().strip("'\"")
-                    
-                    if candidate and not any(x in candidate.lower() for x in ["returning", "value for", "program", "execution"]):
-                        target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                        found_p = self._smart_isfile(target)
-                        if found_p:
-                            found.append((found_p, current_prog))
-                            break
-
-            # Pattern 2: "File name ..." (Common for NetCDF or detailed logs)
-            m_fn = p_file_name.search(line)
-            if m_fn:
-                context_hint = " ".join([l.lower() for l in lines[max(0, i-2):i]])
-                if not any(x in context_hint for x in ["opened for input", "old:read-only", "opened as old"]):
-                    path = m_fn.group(1).strip()
-                    target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                    found_p = self._smart_isfile(target)
-                    if found_p:
-                        # If it's a log, use its header; otherwise use context
-                        p_name = current_prog
-                        if found_p.endswith(".log"):
-                            p_name = self._identify_program_from_log_header(found_p)
-                        found.append((found_p, p_name))
-
-            # Pattern 3: "Value for VAR: 'PATH'" - Variable based discovery
-            m_vf = p_val_for.search(line)
-            if m_vf:
-                var_match = re.search(r"Value for ([A-Z0-9_]+):", line, re.IGNORECASE)
-                if var_match:
-                    vname = var_match.group(1).upper()
-                    if vname in SMKContext.SMKINVEN_OUTPUT_VARS or not any(x in vname for x in SMKContext.INPUT_BLACKLIST):
-                        path = m_vf.group(1).strip()
-                        target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                        found_p = self._smart_isfile(target)
-                        if found_p:
-                            # Filter using hints to avoid noise, but allow if it's in an intermed or reports dir
-                            t_low = target.lower()
-                            is_output_dir = any(x in t_low for x in ["/intermed", "/reports", "/outputs"])
-                            if is_output_dir or any(x in vname for x in SMKContext.OUTPUT_HINTS):
-                                if not any(x in t_low for x in SMKContext.PATH_BLACKLIST):
-                                    found.append((found_p, current_prog))
-
-            # Pattern 4: "WARNING: output file already exists: VAR" followed by path
-            if "output file already exists" in low and (i + 1) < len(lines):
-                 path = lines[i+1].strip().strip("'\"")
-                 if path.startswith("/") or "." in path:
-                     target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                     found_p = self._smart_isfile(target)
-                     if found_p:
-                         found.append((found_p, current_prog))
-
-        return found
-
-    def _parse_log_for_inputs(self, text: str, base_dir: str, default_prog="General") -> List[Tuple[str, str]]:
-        found = []
-        lines = [l.strip() for l in text.splitlines()]
-        current_prog = default_prog
-        p_prog = re.compile(r"Program ([A-Z0-9_]+), Version", re.IGNORECASE)
-        p_file_name = re.compile(r"File name\s+\"(.+?)\"", re.IGNORECASE)
-        # We capture the variable name in group 1 to filter out outputs misidentified as inputs
-        p_val_for = re.compile(r"Value for (\S+):\s+'(.+?)'", re.IGNORECASE)
-
-        for i, line in enumerate(lines):
-            low = line.lower()
             
-            # Unconditionally detect log files and update program context
-            # We look for explicit "checking log file" or any absolute path ending in .log
+            # 2. Heuristic: Log File Tracking
             m_log = re.search(r"([a-zA-Z0-9_\-\./\\]+\.log)", line, re.IGNORECASE)
             if m_log:
                 log_p = m_log.group(1).strip("'\"")
@@ -1913,32 +1836,32 @@ class SMKRunApp(QMainWindow):
                 if found_p:
                     prog_name = self._identify_program_from_log_header(found_p)
                     found.append((found_p, prog_name))
-                    # If this line implies we are about to check this log, update context
-                    if "checking" in low or "processing" in low:
+                    if any(x in low for x in ["checking", "processing", "processing log"]):
                         current_prog = prog_name
 
-            m_prog = p_prog.search(line)
-            if m_prog:
-                current_prog = m_prog.group(1).upper()
-
-            # Match data inputs for ANY program context
-            # Pattern: Opened for input (SMOKE style: path is usually on the next line)
-            if any(x in low for x in ["opened for input", "opened as old", "old:read-only", "checking log file", "input file"]):
-                # First, check if the path is on the SAME line
-                m_same = re.search(r"(?:input|old|only|file|log)\s+((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]{1,4})", line, re.IGNORECASE)
+            # 3. Mode-Specific Triggers
+            is_input_trigger = any(x in low for x in ["opened for input", "opened as old", "old:read-only", "input file", "successful open for inventory"])
+            is_output_trigger = any(x in low for x in ["opened for output", "opened as unknown", "opened as new", "opened for write"])
+            
+            # Skip if trigger doesn't match mode
+            if mode == "input" and is_output_trigger: continue
+            if mode == "output" and is_input_trigger: continue
+            
+            # Discovery Pattern: Multi-line Path Detection
+            if is_input_trigger or is_output_trigger:
+                path_found = False
+                m_same = re.search(r"(?:file|path|log|inventory)\s*[:=]?\s*\"?((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]+)\"?", line, re.IGNORECASE)
                 if m_same:
-                    candidate = m_same.group(1).strip("'\"")
-                    target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                    found_p = self._smart_isfile(target)
-                    if found_p: found.append((found_p, current_prog))
+                    target = m_same.group(1)
+                    found_p = self._smart_isfile(target if os.path.isabs(target) else os.path.normpath(os.path.join(base_dir, target)))
+                    if found_p:
+                        found.append((found_p, current_prog))
+                        path_found = True
                 
-                # Then, Search ahead for the path (standard SMOKE behavior)
-                for j in range(i + 1, min(i + 6, len(lines))):
-                    # Use the original (non-lowered) line from our reconstructed lines list
-                    # Wait, 'lines' are already stripped. Let's use them but carefully.
-                    candidate = lines[j].strip().strip("'\"")
-                    if candidate and not any(x in candidate.lower() for x in ["returning", "value for", "program", "error", "warning", "note:", "skip", "successful", "checking"]):
-                        # Check if it looks like a path (allow uppercase)
+                if not path_found:
+                    for j in range(i + 1, min(i + 6, len(lines))):
+                        candidate = lines[j].strip().strip("'\"")
+                        if not candidate or any(x in candidate.lower() for x in ["returning", "value for", "program", "error"]): continue
                         if candidate.startswith("/") or (("/" in candidate or "." in candidate) and len(candidate) > 4):
                             target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
                             found_p = self._smart_isfile(target)
@@ -1946,47 +1869,29 @@ class SMKRunApp(QMainWindow):
                                 found.append((found_p, current_prog))
                                 break
 
-            # Pattern: Successful OPEN (Alternative SMOKE format)
-            if "successful open for inventory file" in low:
-                 # Check current line first
-                 m_same = re.search(r"file:\s+((?:/|[.]{1,2}/)[A-Za-z0-9_\-\./]+\.[A-Za-z0-9]+)", line, re.IGNORECASE)
-                 path = None
-                 if m_same: path = m_same.group(1)
-                 elif (i + 1) < len(lines): path = lines[i+1].strip().strip("'\"")
-                 
-                 if path:
-                     target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
-                     found_p = self._smart_isfile(target)
-                     if found_p: found.append((found_p, current_prog))
-
-            # Pattern: File name (often used in netCDF open messages)
+            # 4. Global Discovery Patterns (NetCDF/Variables)
             m_fn = p_file_name.search(line)
             if m_fn:
                 context_hint = " ".join([l.lower() for l in lines[max(0, i-2):i]])
-                if any(x in context_hint for x in ["opened for input", "opened as old", "old:read-only", "checking"]):
+                is_input_context = any(x in context_hint for x in ["opened for input", "opened as old", "old:read-only"])
+                if (mode == "input" and is_input_context) or (mode == "output" and not is_input_context):
                     path = m_fn.group(1).strip()
                     target = path if os.path.isabs(path) else os.path.normpath(os.path.join(base_dir, path))
                     found_p = self._smart_isfile(target)
                     if found_p: found.append((found_p, current_prog))
 
-            # Pattern: Value for (captures variables that are files)
             m_vf = p_val_for.search(line)
             if m_vf:
                 vname = m_vf.group(1).upper()
                 candidate = m_vf.group(2).strip()
-                
-                # Filter: If the variable name or path implies this is an OUTPUT, skip it in the input scan.
-                is_output_var = any(x in vname for x in SMKContext.OUTPUT_HINTS)
-                t_low = candidate.lower()
-                is_output_path = any(x in t_low for x in SMKContext.OUTPUT_PATH_HINTS)
-                
-                if not (is_output_var or is_output_path):
-                    if "/" in candidate or "." in candidate:
-                        target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
-                        found_p = self._smart_isfile(target)
-                        if found_p:
-                            found.append((found_p, current_prog))
-
+                if "/" in candidate or "." in candidate:
+                    is_out_var = any(x in vname for x in SMKContext.OUTPUT_HINTS) or any(x in candidate.lower() for x in SMKContext.OUTPUT_PATH_HINTS)
+                    if (mode == "output" and is_out_var) or (mode == "input" and not is_out_var):
+                         target = candidate if os.path.isabs(candidate) else os.path.normpath(os.path.join(base_dir, candidate))
+                         found_p = self._smart_isfile(target)
+                         if found_p and not any(x in found_p.lower() for x in SMKContext.PATH_BLACKLIST):
+                             found.append((found_p, current_prog))
+        
         return found
 
     def _scan_inputs(self):
@@ -2002,14 +1907,14 @@ class SMKRunApp(QMainWindow):
         # Add main log content from the UI (the primary source of file discovery)
         main_log = self._log_text.toPlainText()
         if main_log:
-            for path, prog in self._parse_log_for_inputs(main_log, script_dir):
+            for path, prog in self._extract_paths_from_log(main_log, script_dir, mode="input"):
                 if path.endswith(".log"):
                     log_queue.append((path, prog))
                 else:
                     grouped[prog].add(path)
 
         # 2. Iterative scan of the discovered logs
-        max_scans = 50 
+        max_scans = 500 
         while log_queue and max_scans > 0:
             log_p, context_prog = log_queue.popleft()
             log_p = os.path.abspath(log_p)
@@ -2024,7 +1929,7 @@ class SMKRunApp(QMainWindow):
                 with open(log_p, "r", encoding="utf-8", errors="ignore") as fl:
                     content = fl.read()
                     # Capture data inputs from this program log
-                    for path, prog in self._parse_log_for_inputs(content, base, default_prog=context_prog):
+                    for path, prog in self._extract_paths_from_log(content, base, mode="input"):
                         if path.endswith(".log"):
                             log_queue.append((path, prog))
                         else:
@@ -2152,7 +2057,7 @@ class SMKRunApp(QMainWindow):
         # Start with the main run log (the primary source of file discovery)
         log_content = self._log_text.toPlainText()
         if log_content:
-            for path, prog in self._parse_log_for_files(log_content, script_dir):
+            for path, prog in self._extract_paths_from_log(log_content, script_dir, mode="output"):
                 if prog != "General" and prog != "Global/Env":
                     grouped["Global/Env"].discard(path)
                     grouped["General"].discard(path)
@@ -2163,7 +2068,7 @@ class SMKRunApp(QMainWindow):
                     log_queue.append((path, p_name))
 
         scanned_logs = set()
-        max_scans = 50 # Safeguard against deep circularities
+        max_scans = 500 # Safeguard against deep circularities
 
         while log_queue and max_scans > 0:
             log_p, context_prog = log_queue.popleft()
@@ -2184,7 +2089,7 @@ class SMKRunApp(QMainWindow):
                 with open(log_p, "r", encoding="utf-8", errors="ignore") as fl:
                     content = fl.read()
                     # Scan log for deeper files
-                    for path, prog in self._parse_log_for_files(content, base):
+                    for path, prog in self._extract_paths_from_log(content, base, mode="output"):
                         use_prog = prog if prog != "General" else context_prog
                         
                         # Always prioritize specific program groupings; remove from generic groups
