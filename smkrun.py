@@ -2226,7 +2226,10 @@ class SMKRunApp(QMainWindow):
         # Smart detection: Resolve smkplot location relative to this script
         smkrun_dir = os.path.dirname(os.path.abspath(__file__))
         parent_dir = os.path.dirname(smkrun_dir)
-        smkplot_dir = os.path.join(parent_dir, "smkplot")
+        if os.path.exists(os.path.join(parent_dir, "smkplot")):
+            smkplot_dir = os.path.join(parent_dir, "smkplot")
+        else:
+            smkplot_dir = os.path.join(parent_dir, "SMKPLOT")
         smkplot_exe = os.path.join(smkplot_dir, "smkplot.py")
         
         if not os.path.exists(smkplot_exe):
