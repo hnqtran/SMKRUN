@@ -1,5 +1,6 @@
 EMISINV_A1: Path to raw emissions inventory CSV file (A1), picked up by combine_data
   to build the SMOKE processing list file.
+GSPROTMP_A1: 'Placeholder: Write documentation for this variable here.'
 GSPROTMP_D1: Fragment or case-specific speciation profile file (D1), merged by combine_data
   to create the comprehensive GSPRO.
 GSPROTMP_X5: 'Placeholder: Write documentation for this variable here.'

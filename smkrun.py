@@ -30,10 +30,32 @@ import argparse
 
 # ── X11/SSH Forwarding Workarounds ─────────────
 # Mute benign warnings about missing OpenGL FBConfigs and XDG runtime folders over SSH
+
 os.environ["QT_XCB_GL_INTEGRATION"] = "none"
-if "XDG_RUNTIME_DIR" not in os.environ:
-    os.environ["XDG_RUNTIME_DIR"] = f"/tmp/runtime-{os.environ.get('USER', 'run')}"
-os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
+# Robust XDG_RUNTIME_DIR setup
+import errno
+xdg_dir = os.environ.get("XDG_RUNTIME_DIR")
+if not xdg_dir:
+    xdg_dir = f"/tmp/runtime-{os.environ.get('USER', 'run')}"
+    os.environ["XDG_RUNTIME_DIR"] = xdg_dir
+if not os.path.exists(xdg_dir):
+    parent = os.path.dirname(xdg_dir) or "/"
+    try:
+        if os.access(parent, os.W_OK):
+            os.makedirs(xdg_dir, exist_ok=True)
+        else:
+            # Fallback to /tmp if cannot create
+            xdg_dir = f"/tmp/runtime-{os.environ.get('USER', 'run')}"
+            os.environ["XDG_RUNTIME_DIR"] = xdg_dir
+            os.makedirs(xdg_dir, exist_ok=True)
+    except PermissionError:
+        # Fallback to /tmp if cannot create
+        xdg_dir = f"/tmp/runtime-{os.environ.get('USER', 'run')}"
+        os.environ["XDG_RUNTIME_DIR"] = xdg_dir
+        try:
+            os.makedirs(xdg_dir, exist_ok=True)
+        except Exception:
+            pass
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
