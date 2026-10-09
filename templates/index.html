@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SMKRUN · Interactive Web Platform</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+  <header>
+    <div class="logo">
+      <span>SMKRUN</span>
+      <span class="badge">Web Platform</span>
+      <span id="active-script-title" style="margin-left: 15px; font-size: 0.85rem; color: var(--fg2);">No script loaded</span>
+      <span class="dev-badge" style="margin-left: 14px; font-size: 0.72rem; color: var(--fg2); border-left: 1px solid var(--border); padding-left: 12px; white-space: nowrap;">Developer: <strong style="color: var(--fg);">Huy Tran</strong> (UNC-IE)</span>
+    </div>
+    <div class="header-actions">
+      <button id="btn-run" class="btn-primary" onclick="runScript()" disabled>▶ Run Script</button>
+      <button id="btn-stop" class="btn-danger" onclick="stopScript()" disabled>■ Stop</button>
+      <span id="run-status" style="font-size: 0.8rem; font-weight: bold; margin-left: 10px;"></span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Sidebar: Script Browser -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span>Runscript Browser</span>
+          <div style="display: flex; gap: 4px;">
+            <button style="padding: 2px 6px; font-size: 0.72rem;" onclick="openFsModal('folder')">📁 Root</button>
+            <button style="padding: 2px 6px; font-size: 0.72rem;" onclick="openFsModal('file')">📄 Open</button>
+          </div>
+        </div>
+        <div id="current-root-label" style="font-size: 0.7rem; color: var(--fg2); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title=""></div>
+        <input type="text" id="script-search" class="search-input" placeholder="Filter scripts (e.g. nonpoint, rwc)..." oninput="filterScripts()">
+      </div>
+      <div class="script-list" id="script-list"></div>
+      <div style="padding: 8px 12px; border-top: 1px solid var(--border); font-size: 0.7rem; color: var(--fg2); background: var(--bg2); text-align: center;">
+        Developed by <strong style="color: var(--fg);">Huy Tran</strong> · UNC-IE
+      </div>
+    </div>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('tab-vars')">Environment Variables</div>
+        <div class="tab" onclick="switchTab('tab-source')">Source Script</div>
+        <div class="tab" onclick="switchTab('tab-log')">Execution Log</div>
+        <div class="tab" onclick="switchTab('tab-inputs')">Input Files</div>
+        <div class="tab" onclick="switchTab('tab-outputs')">Output Files</div>
+        <div class="tab" onclick="switchTab('tab-analysis')">Log Analysis</div>
+      </div>
+
+      <!-- Variables Tab -->
+      <div id="tab-vars" class="tab-content active">
+        <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="var-filter" class="search-input" style="max-width: 280px; margin-top: 0;" placeholder="Filter variables..." oninput="renderVars()">
+            <button onclick="reloadVars()" style="padding: 4px 10px;">⟳ Reload</button>
+            <button onclick="checkPaths()" style="padding: 4px 10px;">✓ Check Paths</button>
+            <button id="btn-save-vars-script" onclick="saveAllOverridesToScript()" style="padding: 4px 10px; background: #0284c7; color: white;" disabled>💾 Save Overrides to Script</button>
+          </div>
+          <span id="override-count" style="font-size: 0.8rem; color: var(--warn);"></span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 240px;">Variable</th>
+              <th>Current Value (Double click to edit, Right-click for options)</th>
+              <th style="width: 130px;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="vars-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Source Tab -->
+      <div id="tab-source" class="tab-content" style="display: none; flex-direction: column;">
+        <div style="display: flex; gap: 8px; margin-bottom: 10px; align-items: center;">
+          <button id="btn-edit-src" class="btn-primary" onclick="toggleEditSource()">Edit Script</button>
+          <button id="btn-save-src" onclick="saveSourceFile()" disabled>Save to File</button>
+          <button id="btn-patch-src" onclick="applySourcePatch()" disabled>Apply In-Memory Patch</button>
+          <button id="btn-revert-src" onclick="revertSource()" disabled>Revert Changes</button>
+          <span id="src-status-badge" style="font-size: 0.8rem; margin-left: 10px; color: var(--fg2);"></span>
+        </div>
+        <div style="flex: 1; height: calc(100% - 45px);">
+          <textarea id="source-editor" class="source-box" readonly spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- Log Tab -->
+      <div id="tab-log" class="tab-content">
+        <div id="log-display" class="log-box">Waiting for execution...</div>
+      </div>
+
+      <!-- Inputs Tab -->
+      <div id="tab-inputs" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 0.85rem; color: var(--fg2);">Discovered input files and inventory datasets consumed by tools:</span>
+          <button onclick="refreshFileIO()" style="padding: 4px 10px;">⟳ Refresh Inputs</button>
+        </div>
+        <div id="inputs-container"></div>
+      </div>
+
+      <!-- Outputs Tab -->
+      <div id="tab-outputs" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 0.85rem; color: var(--fg2);">Auto-detected outputs and reports generated by this run:</span>
+          <button onclick="refreshFileIO()" style="padding: 4px 10px;">⟳ Refresh Outputs</button>
+        </div>
+        <div id="outputs-container"></div>
+      </div>
+
+      <!-- Analysis Tab -->
+      <div id="tab-analysis" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span style="font-size: 0.85rem; color: var(--fg2);">Log diagnostics, warnings, errors, and program stages:</span>
+          <button onclick="refreshAnalysis()" style="padding: 4px 10px;">⟳ Run Analysis</button>
+        </div>
+        <div style="display: flex; gap: 15px; height: calc(100% - 45px);">
+          <div style="flex: 1; display: flex; flex-direction: column;">
+            <div style="font-weight: bold; font-size: 0.85rem; margin-bottom: 8px; color: var(--fg2);">Detected Issues (Click to open referenced log file or jump to line)</div>
+            <div id="analysis-issues" style="flex: 1; overflow-y: auto; background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; padding: 10px;"></div>
+          </div>
+          <div style="width: 380px; display: flex; flex-direction: column;">
+            <div style="font-weight: bold; font-size: 0.85rem; margin-bottom: 8px; color: var(--fg2);">Summary & Status</div>
+            <div id="analysis-summary" class="log-box" style="flex: 1; font-size: 0.8rem; background: var(--panel2); border: 1px solid var(--border);"></div>
+          </div>
+        </div>
+      </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated Bottom Console Dock -->
+  <div id="bottom-console" class="bottom-console">
+    <div class="bottom-console-header">
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <span>💻 Web & System Console</span>
+        <span id="console-badge-errors" class="badge-counter" style="background: rgba(237,66,69,0.2); color: var(--error);">0 Errors</span>
+        <span id="console-badge-warns" class="badge-counter" style="background: rgba(254,231,92,0.2); color: var(--warn);">0 Warns</span>
+        <span id="console-badge-logs" class="badge-counter" style="background: rgba(88,101,242,0.2); color: var(--accent);">0 Logs</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button style="padding: 2px 8px; font-size: 0.72rem;" onclick="clearBottomConsole()">Clear</button>
+        <button id="btn-toggle-console" style="padding: 2px 8px; font-size: 0.72rem;" onclick="toggleBottomConsole()">▼ Collapse</button>
+      </div>
+    </div>
+    <div id="bottom-console-content" class="bottom-console-content"></div>
+  </div>
+
+  <!-- Host Filesystem Browser Modal -->
+  <div id="fs-modal" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span id="fs-modal-title">Browse Host Filesystem</span>
+        <button onclick="closeFsModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button id="fs-btn-up" onclick="navigateFsUp()" style="padding: 4px 10px;">⬆ Up</button>
+          <input type="text" id="fs-current-path" class="search-input" style="margin-top: 0; flex: 1;" onkeydown="if(event.key==='Enter') navigateFsTo(this.value)">
+          <button onclick="navigateFsTo(document.getElementById('fs-current-path').value)" style="padding: 4px 10px;">Go</button>
+        </div>
+        <div class="fs-list" id="fs-entries-list"></div>
+      </div>
+      <div class="modal-footer">
+        <button onclick="closeFsModal()">Cancel</button>
+        <button id="fs-btn-select" class="btn-primary" onclick="confirmFsSelection()">Select</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- File Content / Report Viewer Modal -->
+  <div id="file-modal" class="modal-overlay">
+    <div class="modal-box" style="width: 850px; height: 80vh; max-height: 85vh;">
+      <div class="modal-header">
+        <span id="file-modal-title" style="font-family: monospace;">File Viewer</span>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="file-modal-size" style="font-size: 0.75rem; color: var(--fg2);"></span>
+          <button onclick="closeFileModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 10px; display: flex; flex-direction: column;">
+        <div id="file-modal-content" class="log-box" style="flex: 1; height: 100%;"></div>
+        <textarea id="file-modal-editor" class="source-editor" style="display: none; flex: 1; height: 100%; width: 100%; box-sizing: border-box; resize: none;" spellcheck="false"></textarea>
+      </div>
+      <div class="modal-footer" style="justify-content: space-between;">
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button id="btn-file-prev" onclick="navFileChunk(-1)">◀ Previous 2MB</button>
+          <button id="btn-file-next" onclick="navFileChunk(1)">Next 2MB ▶</button>
+          <span id="file-save-status" style="font-size: 0.75rem; color: var(--fg2); margin-left: 8px;"></span>
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <button id="btn-file-edit-toggle" onclick="toggleFileEditMode()">✏️ Edit</button>
+          <button id="btn-file-save" style="display: none;" class="btn-primary" onclick="saveFileContentFromModal()">💾 Save Changes</button>
+          <button id="btn-file-plot" style="display: none;" onclick="launchPlotFromViewer()">📊 Plot Emissions</button>
+          <button onclick="closeFileModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Variable Doc Tooltip Modal -->
+  <div id="doc-modal" class="modal-overlay">
+    <div class="modal-box" style="width: 550px;">
+      <div class="modal-header">
+        <span id="doc-modal-title">Variable Documentation</span>
+        <button onclick="closeDocModal()">✕</button>
+      </div>
+      <div id="doc-modal-body" class="modal-body" style="font-size: 0.85rem; line-height: 1.5;"></div>
+      <div class="modal-footer">
+        <button onclick="closeDocModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive SMKPLOT Multi-Window Container (Zero-X11) -->
+  <div id="smkplot-multi-container"></div>
+
+  <!-- Right-Click Context Menu -->
+  <div id="custom-context-menu" class="context-menu"></div>
+
+  <!-- Modular Frontend Architecture -->
+  <script src="/static/js/console.js?v=3.0"></script>
+  <script src="/static/js/tree.js?v=3.0"></script>
+  <script src="/static/js/variables.js?v=3.0"></script>
+  <script src="/static/js/smkplot.js?v=3.0"></script>
+  <script src="/static/js/workspace.js?v=3.0"></script>
+  <script src="/static/js/app.js?v=3.0"></script>
+</body>
+</html>

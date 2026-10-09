@@ -68,7 +68,7 @@ try:
                                  QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
                                  QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
                                  QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
-    from PySide6.QtCore import Qt, QTimer, Signal, QObject, QRect
+    from PySide6.QtCore import Qt, QTimer, Signal, QObject, QRect, QSettings
     from PySide6.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter, QPainter, QPolygon
     QT_VERSION = 6
 except ImportError:
@@ -79,13 +79,15 @@ except ImportError:
                                  QFileDialog, QMessageBox, QAbstractItemView, QListWidget, 
                                  QListWidgetItem, QInputDialog, QDialog, QDialogButtonBox,
                                  QToolTip, QMenu, QStackedWidget, QPlainTextEdit)
-    from PyQt5.QtCore import Qt, QTimer, pyqtSignal as Signal, QObject, QRect
+    from PyQt5.QtCore import Qt, QTimer, pyqtSignal as Signal, QObject, QRect, QSettings
     from PyQt5.QtGui import QColor, QFont, QTextCursor, QTextCharFormat, QBrush, QTextBlockFormat, QCursor, QSyntaxHighlighter, QPainter, QPolygon
     QT_VERSION = 5
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 SCRIPTS_ROOT = (
-    "/proj/ie/proj/SMOKE/htran/12LISTOS/2022he_cb6_22m/scripts"
+    os.environ.get("SMK_SCRIPTS")
+    or (os.path.join(os.environ["SMK_ROOT"], "scripts") if "SMK_ROOT" in os.environ and os.path.isdir(os.path.join(os.environ["SMK_ROOT"], "scripts")) else None)
+    or os.getcwd()
 )
 DIR_DEFS_CANDIDATES = [
     "directory_definitions.csh",
@@ -227,9 +229,16 @@ class SMKContext:
 
 _VAR_PAT = re.compile(r"\$\{?([A-Za-z0-9_]+)\}?")
 
-def parse_tcsh_all_env_vars(path: str, env_context: Dict[str, str] = None) -> Dict[str, str]:
+def parse_tcsh_all_env_vars(path: str, env_context: Dict[str, str] = None, visited: Optional[set] = None) -> Dict[str, str]:
     out: Dict[str, str] = env_context.copy() if env_context else {}
     if not os.path.exists(path): return out
+
+    if visited is None:
+        visited = set()
+    norm_path = os.path.realpath(path)
+    if norm_path in visited:
+        return out
+    visited.add(norm_path)
     
     p_env = re.compile(r"^\s*setenv\s+([A-Za-z0-9_]+)(?:\s+|=)(.+?)$")
     p_set = re.compile(r"^\s*set\s+([A-Za-z0-9_]+)(?:\s*=\s*|\s+)(.+?)$")
@@ -254,8 +263,8 @@ def parse_tcsh_all_env_vars(path: str, env_context: Dict[str, str] = None) -> Di
                         exp_src = os.path.normpath(os.path.join(os.path.dirname(path), exp_src))
                     
                     if os.path.exists(exp_src) and exp_src != path:
-                        # Pass the current environment so nested variables resolve
-                        out.update(parse_tcsh_all_env_vars(exp_src, out))
+                        # Pass the current environment and visited set so nested variables resolve without cycles
+                        out.update(parse_tcsh_all_env_vars(exp_src, out, visited))
                     continue
 
                 m = p_env.match(line) or p_set.match(line)
@@ -264,7 +273,8 @@ def parse_tcsh_all_env_vars(path: str, env_context: Dict[str, str] = None) -> Di
                 
                 # Expand using current context
                 out[var] = recursive_expand(val_part, out)
-    except: pass
+    except (OSError, UnicodeDecodeError, ValueError):
+        pass
     return out
 
 def recursive_expand(val: str, env: Dict[str, str], depth: int = 20) -> str:
@@ -275,14 +285,14 @@ def recursive_expand(val: str, env: Dict[str, str], depth: int = 20) -> str:
         if not hits: break
         orig = result
         # Sort hits by length descending to prevent partial matching (e.g., $VAR replacing inside $VAR_1)
-        # We also use regex word boundaries for the short-form substitution.
+        # We also use negative lookahead for shell identifier characters.
         for v in sorted(list(set(hits)), key=len, reverse=True):
             if v in env and env[v] is not None:
                 val_to_insert = str(env[v])
                 # Handle long-form ${VAR}
                 result = result.replace(f"${{{v}}}", val_to_insert)
-                # Handle short-form $VAR with word boundary protection
-                result = re.sub(rf"\${v}\b", val_to_insert, result)
+                # Handle short-form $VAR with boundary protection against trailing identifier chars
+                result = re.sub(rf"\${v}(?![A-Za-z0-9_])", val_to_insert, result)
         if result == orig: break
     return result
 
@@ -324,7 +334,8 @@ def check_netcdf(path):
         with open(path, "rb") as f:
             sig = f.read(4)
             return sig.startswith(b"CDF") or sig.startswith(b"\x89HDF")
-    except: return False
+    except (OSError, PermissionError):
+        return False
 
 def get_nc_metadata(path):
     try:
@@ -611,6 +622,8 @@ class ColumnRuler(QWidget):
                 painter.drawLine(int(x), 20, int(x), 22)
 
 class FileViewerDialog(QDialog):
+    CHUNK_SIZE = 2 * 1024 * 1024  # 2 MB per page chunk
+
     def __init__(self, path, var_name, parent=None):
         super().__init__(parent)
         self.path = path
@@ -618,6 +631,9 @@ class FileViewerDialog(QDialog):
         self.parent_app = parent
         self.original_content = ""
         self.is_netcdf = check_netcdf(path)
+        self.total_size = os.path.getsize(path) if (os.path.exists(path) and os.path.isfile(path)) else 0
+        self.current_offset = 0
+        self.is_chunked = (not self.is_netcdf) and (self.total_size > self.CHUNK_SIZE)
         
         self.setWindowTitle(f"Viewing: {os.path.basename(path)} ({var_name})")
         self.resize(1100, 800)
@@ -652,6 +668,31 @@ class FileViewerDialog(QDialog):
             self.btn_cancel.hide()
             self.btn_save_as.hide()
             tbar.addWidget(QLabel("<b>[Binary NetCDF Mode]</b> Read-only metadata visualization"))
+        elif self.is_chunked:
+            self.btn_edit.setEnabled(False)
+            self.btn_edit.setToolTip("Direct editing disabled for large multi-chunk files to prevent truncation.")
+            
+            # Chunk Navigation Controls
+            tbar.addSpacing(15)
+            self.btn_first = QPushButton("<< Start")
+            self.btn_first.clicked.connect(self._go_first_chunk)
+            tbar.addWidget(self.btn_first)
+
+            self.btn_prev = QPushButton("< Prev")
+            self.btn_prev.clicked.connect(self._go_prev_chunk)
+            tbar.addWidget(self.btn_prev)
+
+            self.lbl_chunk = QLabel()
+            self.lbl_chunk.setStyleSheet(f"color: {PALETTE['accent']}; font-weight: bold; padding: 0 5px;")
+            tbar.addWidget(self.lbl_chunk)
+
+            self.btn_next = QPushButton("Next >")
+            self.btn_next.clicked.connect(self._go_next_chunk)
+            tbar.addWidget(self.btn_next)
+
+            self.btn_last = QPushButton("End >>")
+            self.btn_last.clicked.connect(self._go_last_chunk)
+            tbar.addWidget(self.btn_last)
         
         tbar.addStretch()
         layout.addWidget(tbar_container)
@@ -680,20 +721,7 @@ class FileViewerDialog(QDialog):
             }}
         """)
         
-        try:
-            if self.is_netcdf:
-                self.original_content = get_nc_metadata(path)
-                self.text.setPlainText(self.original_content)
-            else:
-                with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                    self.original_content = f.read(5*1024*1024) 
-                    self.text.setPlainText(self.original_content)
-                    if f.read(1):
-                        self.text.appendPlainText("\n\n... [File truncated for performance] ...")
-                    
-        except Exception as e:
-            if hasattr(self, 'text'):
-                self.text.setPlainText(f"[Error reading file: {path}\n\n{e}]")
+        self._load_chunk(0)
         
         # Status Bar
         self.status_bar = QWidget()
@@ -715,12 +743,54 @@ class FileViewerDialog(QDialog):
         self.text.cursorPositionChanged.connect(self._update_status)
         self._update_status()
 
+    def _load_chunk(self, offset: int):
+        try:
+            if self.is_netcdf:
+                self.original_content = get_nc_metadata(self.path)
+                self.text.setPlainText(self.original_content)
+            else:
+                self.current_offset = max(0, min(offset, max(0, self.total_size - self.CHUNK_SIZE)))
+                with open(self.path, "r", encoding="utf-8", errors="ignore") as f:
+                    f.seek(self.current_offset)
+                    self.original_content = f.read(self.CHUNK_SIZE)
+                    self.text.setPlainText(self.original_content)
+                
+                if self.is_chunked:
+                    start_mb = self.current_offset / (1024 * 1024)
+                    end_mb = min(self.total_size, self.current_offset + self.CHUNK_SIZE) / (1024 * 1024)
+                    tot_mb = self.total_size / (1024 * 1024)
+                    self.lbl_chunk.setText(f"Chunk: {start_mb:.1f} - {end_mb:.1f} MB of {tot_mb:.1f} MB")
+                    self.btn_first.setEnabled(self.current_offset > 0)
+                    self.btn_prev.setEnabled(self.current_offset > 0)
+                    has_more = (self.current_offset + self.CHUNK_SIZE) < self.total_size
+                    self.btn_next.setEnabled(has_more)
+                    self.btn_last.setEnabled(has_more)
+        except Exception as e:
+            if hasattr(self, 'text'):
+                self.text.setPlainText(f"[Error reading file: {self.path}\n\n{e}]")
+
+    def _go_first_chunk(self):
+        self._load_chunk(0)
+
+    def _go_prev_chunk(self):
+        self._load_chunk(max(0, self.current_offset - self.CHUNK_SIZE))
+
+    def _go_next_chunk(self):
+        self._load_chunk(self.current_offset + self.CHUNK_SIZE)
+
+    def _go_last_chunk(self):
+        if self.total_size > self.CHUNK_SIZE:
+            last_off = (self.total_size // self.CHUNK_SIZE) * self.CHUNK_SIZE
+            if last_off == self.total_size and last_off >= self.CHUNK_SIZE:
+                last_off -= self.CHUNK_SIZE
+            self._load_chunk(last_off)
+
     def _update_status(self, *args):
         cursor = self.text.textCursor()
         line = cursor.blockNumber() + 1
         col = cursor.columnNumber() + 1
-        self.status_label.setText(f"Line: {line}, Col: {col}")
-
+        size_str = f" | Total Size: {self.total_size / (1024*1024):.2f} MB" if self.total_size else ""
+        self.status_label.setText(f"Line: {line}, Col: {col}{size_str}")
 
     def _set_edit_mode(self, editing):
         self.text.setReadOnly(not editing)
@@ -758,11 +828,20 @@ class SMKRunApp(QMainWindow):
         self.setWindowTitle(f"SMOKE Run Launcher · 2022v2 Platform (Qt{QT_VERSION})")
         self.resize(1600, 950)
         
-        self._scripts_root = SCRIPTS_ROOT
+        self._settings = QSettings("UNC_IE", "SMKRUN")
+        saved_geom = self._settings.value("geometry")
+        if saved_geom:
+            self.restoreGeometry(saved_geom)
+
+        saved_root = self._settings.value("scripts_root")
         if initial_dir and os.path.isdir(initial_dir):
             self._scripts_root = os.path.abspath(initial_dir)
         elif initial_script and os.path.exists(initial_script):
             self._scripts_root = os.path.dirname(os.path.abspath(initial_script))
+        elif saved_root and os.path.isdir(saved_root):
+            self._scripts_root = saved_root
+        else:
+            self._scripts_root = SCRIPTS_ROOT
         self._proc = None
         self._running = False
         self._current_script: Optional[str] = None
@@ -1249,6 +1328,8 @@ class SMKRunApp(QMainWindow):
         d = QFileDialog.getExistingDirectory(self, "Select Scripts Root Directory", self._scripts_root)
         if d:
             self._scripts_root = d
+            if hasattr(self, "_settings") and self._settings:
+                self._settings.setValue("scripts_root", d)
             self._filter_edit.setText(DEFAULT_SCRIPT_FILTER)
             self._filter_tree()
 
@@ -1459,8 +1540,14 @@ class SMKRunApp(QMainWindow):
     def _load_source(self, path: str):
         self._src_text.clear()
         try:
+            size = os.path.getsize(path) if os.path.exists(path) else 0
             with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                self._src_text.setPlainText(fh.read())
+                if size > 2 * 1024 * 1024:
+                    content = fh.read(2 * 1024 * 1024)
+                    content += f"\n\n# ... [Script truncated for display: Total size {size / (1024*1024):.2f} MB] ..."
+                else:
+                    content = fh.read()
+                self._src_text.setPlainText(content)
             self._highlight_source()
         except Exception as exc:
             self._src_text.setPlainText(f"[Error: {exc}]")
@@ -1618,7 +1705,10 @@ class SMKRunApp(QMainWindow):
         is_temp = False
         
         if self._overrides or self._script_override_content:
-            fd, tmp_script = tempfile.mkstemp(suffix=".csh", prefix="smkrun_override_", dir=script_dir)
+            try:
+                fd, tmp_script = tempfile.mkstemp(suffix=".csh", prefix="smkrun_override_", dir=script_dir)
+            except (PermissionError, OSError):
+                fd, tmp_script = tempfile.mkstemp(suffix=".csh", prefix="smkrun_override_")
             is_temp = True
             if self._script_override_content:
                 lines = self._script_override_content.splitlines(True)
@@ -1821,7 +1911,7 @@ class SMKRunApp(QMainWindow):
                         if prog in SMKContext.TOOLS: return prog
                         # Otherwise if it looks like a program name (e.g. MOVESMRG)
                         if len(prog) >= 5: return prog
-        except:
+        except (OSError, UnicodeDecodeError):
             pass
             
         # Fallback to filename-based mapping
@@ -2122,7 +2212,8 @@ class SMKRunApp(QMainWindow):
                         grouped[use_prog].add(path)
                         if path.endswith(".log"):
                             log_queue.append((path, use_prog))
-            except: pass
+            except (OSError, UnicodeDecodeError):
+                pass
 
         # 0. Cache check: only rebuild if set of paths OR their grouping has changed
         current_state = hash(frozenset((p, frozenset(ps)) for p, ps in grouped.items()))
@@ -2386,6 +2477,13 @@ class SMKRunApp(QMainWindow):
         self._log_text.ensureCursorVisible()
 
     def closeEvent(self, event):
+        if hasattr(self, "_settings") and self._settings:
+            try:
+                self._settings.setValue("geometry", self.saveGeometry())
+                if hasattr(self, "_scripts_root") and self._scripts_root:
+                    self._settings.setValue("scripts_root", self._scripts_root)
+            except Exception:
+                pass
         if hasattr(self, "_proc") and self._proc:
             try:
                 self._proc.kill()
@@ -2415,6 +2513,10 @@ Examples:
     parser.add_argument("-f", "--file", help="Path to a SMOKE runscript (.csh) to load on startup")
     parser.add_argument("-d", "--dir", help="Project root directory for the script browser")
     parser.add_argument("-r", "--run", help="Load and automatically run this SMOKE runscript")
+    parser.add_argument("--html", action="store_true", help="Launch interactive HTML/web interface instead of X11 desktop GUI")
+    parser.add_argument("-p", "--port", type=int, default=8080, help="Port to bind for HTML interface (default: 8080)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host address to bind for HTML interface (default: 127.0.0.1)")
+    parser.add_argument("--reload", action="store_true", help="Enable automatic server reload on code modification (HTML mode)")
     args = parser.parse_args()
 
     # Determine which script to load and if it should auto-run
@@ -2424,6 +2526,70 @@ Examples:
     if args.run:
         initial_script = args.run
         auto_run = True
+
+    if args.html:
+        from core.state import STATE, STATE_LOCK
+        from core.server import SMKRunHandler, ThreadedHTTPServer, parse_script_vars, _enrich_var_rows, _watch_files_and_reload
+        from core.runner import run_script_worker
+
+        if args.dir and os.path.isdir(args.dir):
+            STATE.scripts_root = os.path.abspath(args.dir)
+        elif initial_script and os.path.isfile(initial_script):
+            STATE.scripts_root = os.path.dirname(os.path.abspath(initial_script))
+
+        if initial_script and os.path.isfile(initial_script):
+            full_path = os.path.abspath(initial_script)
+            with STATE_LOCK:
+                STATE.current_script = full_path
+                STATE.overrides.clear()
+                try:
+                    rows, env = parse_script_vars(full_path)
+                    STATE.var_rows = _enrich_var_rows(rows, STATE.overrides, env)
+                    STATE.env_context = env
+                except Exception as ex:
+                    print(f"[SMKRUN-WEB] Warning parsing initial script: {ex}")
+
+            if auto_run:
+                print(f"[SMKRUN-WEB] Auto-launching run for: {full_path}")
+                threading.Thread(target=run_script_worker, args=(full_path, STATE.overrides, None), daemon=True).start()
+
+        server = None
+        target_port = args.port
+        max_attempts = 20
+        for port_offset in range(max_attempts):
+            candidate_port = target_port + port_offset
+            try:
+                server = ThreadedHTTPServer((args.host, candidate_port), SMKRunHandler)
+                target_port = candidate_port
+                break
+            except OSError as e:
+                if e.errno == 98:
+                    continue
+                raise
+
+        if server is None:
+            print(f"Error: Could not bind to any port between {args.port} and {args.port + max_attempts - 1} on {args.host}.")
+            sys.exit(1)
+
+        if args.reload:
+            watcher = threading.Thread(target=_watch_files_and_reload, args=(server,), daemon=True)
+            watcher.start()
+
+        url = f"http://{args.host}:{target_port}"
+        print(f"\n=======================================================")
+        print(f"  SMKRUN Web Platform is running at:")
+        print(f"  --> {url}")
+        print(f"  Scripts Root: {STATE.scripts_root}")
+        if STATE.current_script:
+            print(f"  Loaded Script: {STATE.current_script}")
+        print(f"  Auto-reload: {'ENABLED' if args.reload else 'DISABLED (stable mode)'}")
+        print(f"=======================================================\n")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nShutting down SMKRUN Web Platform...")
+            server.server_close()
+            sys.exit(0)
 
     signal.signal(signal.SIGINT, signal.SIG_DFL)
     app = QApplication(sys.argv)

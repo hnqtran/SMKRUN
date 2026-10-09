@@ -55,7 +55,7 @@ fi
 echo "[3/3] Updating script shebangs..."
 
 # Target scripts that or intended for direct execution
-SCRIPTS_TO_PATCH=("$MAIN_SCRIPT" "$PARSER_SCRIPT" "utils_workflow.py" "utils_qarun.py" "emf_env_parser.py")
+SCRIPTS_TO_PATCH=("$MAIN_SCRIPT" "$PARSER_SCRIPT" "core/smkplot_web_engine.py" "utils_workflow.py" "utils_qarun.py" "emf_env_parser.py")
 
 for script in "${SCRIPTS_TO_PATCH[@]}"; do
     if [ -f "$script" ]; then
