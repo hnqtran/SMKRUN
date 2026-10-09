@@ -29,7 +29,18 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Main Container Split */
 .container { display: flex; flex: 1; overflow: hidden; }
-.sidebar { width: 320px; background: var(--panel2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.sidebar { width: 320px; min-width: 180px; max-width: 750px; flex-shrink: 0; background: var(--panel2); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.resizer-horizontal {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.resizer-horizontal:hover, .resizer-horizontal.resizing {
+  background: var(--accent);
+}
 .sidebar-header { padding: 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem; color: var(--fg2); font-weight: bold; }
 .search-input { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--fg); padding: 6px 10px; border-radius: 4px; margin-top: 6px; font-size: 0.8rem; }
 .script-list { flex: 1; overflow-y: auto; padding: 6px; }

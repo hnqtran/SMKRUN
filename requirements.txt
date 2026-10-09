@@ -6,3 +6,6 @@ pandas
 netCDF4
 beautifulsoup4
 PyYAML
+pyproj
+geopandas
+shapely

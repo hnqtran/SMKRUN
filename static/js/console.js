@@ -36,6 +36,11 @@ function appendToBottomConsole(type, ...args) {
   row.appendChild(msgEl);
   content.appendChild(row);
 
+  // If an error occurs and console is collapsed, expand it so user sees the error
+  if (type === 'error' && isConsoleCollapsed) {
+    toggleBottomConsole();
+  }
+
   // Auto-scroll to bottom
   content.scrollTop = content.scrollHeight;
 }

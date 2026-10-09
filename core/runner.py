@@ -24,15 +24,29 @@ from smkrun import SHELL
 
 SMKPLOT_ENGINE_SCRIPT = os.path.join(BASE_DIR, "core", "smkplot_web_engine.py")
 
+def _get_smkplot_python_bin() -> str:
+    """Find python interpreter in adjacent smkplot/.venv, or raise an explicit error."""
+    parent_dir = os.path.dirname(BASE_DIR)
+    checked_paths = []
+    for name in ("smkplot", "SMKPLOT"):
+        cand_venv = os.path.join(parent_dir, name, ".venv", "bin", "python")
+        checked_paths.append(cand_venv)
+        if os.path.isfile(cand_venv) and os.access(cand_venv, os.X_OK):
+            return cand_venv
+    raise FileNotFoundError(
+        "SMKPLOT Python environment not found.\n"
+        f"Checked paths:\n  " + "\n  ".join(checked_paths) + "\n"
+        "Ensure smkplot is installed side-by-side with smkrun and its .venv is set up."
+    )
+
 def call_smkplot_web_engine(args: List[str]) -> Dict[str, Any]:
-    """Execute headless smkplot web engine directly using its installed shebang."""
+    """Execute headless smkplot web engine using the verified smkplot virtualenv."""
     if not os.path.isfile(SMKPLOT_ENGINE_SCRIPT):
         raise FileNotFoundError(f"SMKPLOT engine script not found: {SMKPLOT_ENGINE_SCRIPT}")
-    if not os.access(SMKPLOT_ENGINE_SCRIPT, os.X_OK):
-        raise PermissionError(f"SMKPLOT engine script is not executable: {SMKPLOT_ENGINE_SCRIPT}")
 
-    cmd = [SMKPLOT_ENGINE_SCRIPT] + args
-    print(f"INFO [SMKPLOT-WEB] Invoking: {' '.join(cmd[:6])}...", flush=True)
+    py_bin = _get_smkplot_python_bin()
+    cmd = [py_bin, SMKPLOT_ENGINE_SCRIPT] + args
+    print(f"INFO [SMKPLOT-WEB] Invoking: {' '.join(cmd[:7])}...", flush=True)
     try:
         t0 = time.time()
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=60)

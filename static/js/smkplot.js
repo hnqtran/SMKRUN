@@ -1091,6 +1091,7 @@ async function launchSmkplot(filePath) {
     const res = await fetch(`/api/smkplot/load?path=${encodeURIComponent(filePath)}`);
     const data = await res.json();
     if (data.error) {
+      console.error(`[SMKPLOT] Load Error: ${data.error}`);
       alert(`SMKPLOT Load Error: ${data.error}`);
       instance.close();
       return;
